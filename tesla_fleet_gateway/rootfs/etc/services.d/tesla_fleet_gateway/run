@@ -52,7 +52,8 @@ else
             wait "$PROXY_PID" 2>/dev/null || true
         fi
         bashio::log.fatal "Tesla OAuth callback service failed to start"
-        bashio::log.fatal "Add-on is idle until you fix the configuration and restart."
+        bashio::log.fatal "Stopping the add-on. Fix the configuration, then start it again."
+        bashio::addon.stop
         exec sleep infinity
     fi
 fi
@@ -70,7 +71,8 @@ sleep 1
 if ! kill -0 "$TELEMETRY_PID" 2>/dev/null; then
     bashio::log.error "fleet-telemetry failed to start before nginx edge"
     bashio::log.fatal "fleet-telemetry must be running before the SNI passthrough listener starts"
-    bashio::log.fatal "Add-on is idle until you fix the configuration and restart."
+    bashio::log.fatal "Stopping the add-on. Fix the configuration, then start it again."
+    bashio::addon.stop
     exec sleep infinity
 fi
 

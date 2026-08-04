@@ -531,12 +531,14 @@ else
 fi
 
 # User-fixable startup failures must not exit non-zero: s6 would restart the
-# service every second and flood the logs. Idle until the operator restarts.
-idle_after_config_error() {
+# service every second and flood the logs. Ask Supervisor to stop the add-on.
+stop_after_config_error() {
     local message="$1"
 
     bashio::log.fatal "${message}"
-    bashio::log.fatal "Add-on is idle until you fix the configuration and restart."
+    bashio::log.fatal "Stopping the add-on. Fix the configuration, then start it again."
+    bashio::addon.stop
+    # Supervisor stop is asynchronous; stay put so s6 cannot restart-loop first.
     exec sleep infinity
 }
 
@@ -547,7 +549,7 @@ fail_next_step() {
     bashio::log.error "⚠️ ACTION REQUIRED"
     bashio::log.error "⎢ Problem: ${problem}"
     bashio::log.error "⎣ Next step: ${next_step}"
-    idle_after_config_error "Tesla Fleet Gateway onboarding is incomplete"
+    stop_after_config_error "Tesla Fleet Gateway onboarding is incomplete"
 }
 
 case "$TESLA_OAUTH_CALLBACK_PATH" in

@@ -167,6 +167,6 @@ Leave the list empty to use the built-in defaults. Fields that `tesla_fleet_stre
 | TLS SAN warning | Certificate must include `telemetry.<domain>` |
 | Scanner / browser noise on telemetry host | `client didn't provide a certificate` from non-vehicle clients is normal |
 | Private key missing | Official `tesla_fleet` must create `/config/tesla_fleet.key`; the add-on will not generate one |
-| Placeholder domain / incomplete setup | Logs show **ACTION REQUIRED** once, then the add-on stays idle (no restart loop). Fix options and restart |
+| Placeholder domain / incomplete setup | Logs show **ACTION REQUIRED** once, then the add-on **stops**. Fix options and start again |
 
 Logs use **ACTION REQUIRED** blocks with concrete next steps when the add-on detects a blocking condition.
