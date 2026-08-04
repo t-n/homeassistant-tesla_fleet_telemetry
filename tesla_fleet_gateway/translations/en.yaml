@@ -7,13 +7,20 @@ configuration:
     description: Fallback Fleet API region when the tesla_fleet_stream handoff file is missing. Usually overridden by integration OAuth.
   mqtt:
     name: MQTT
-    description: Broker where decoded telemetry is published for tesla_fleet_stream.
+    description: >-
+      Broker for decoded telemetry (tesla_fleet_stream). Leave broker and
+      credentials blank to auto-use the Mosquitto add-on via Supervisor discovery.
+      With host networking, if discovery is unavailable set broker to the HA host
+      LAN IP (not core-mosquitto).
+    broker:
+      name: Broker
+      description: MQTT hostname or IP. Leave blank to auto-discover the Mosquitto add-on.
     username:
       name: Username
-      description: Optional MQTT broker username. Leave blank with password for anonymous access.
+      description: Optional. Leave blank with password to use Supervisor-discovered Mosquitto credentials.
     password:
       name: Password
-      description: Optional MQTT broker password.
+      description: Optional. Leave blank with username to use Supervisor-discovered Mosquitto credentials.
   hosts:
     name: Hosts
     description: Control PEM on the main domain and mTLS streaming on the telemetry subdomain.

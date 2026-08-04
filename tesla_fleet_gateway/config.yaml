@@ -1,6 +1,6 @@
 name: "Tesla Fleet Gateway"
 description: "Single-host Tesla PEM and Fleet Telemetry gateway"
-version: "0.2.7"
+version: "0.2.8"
 slug: "tesla_fleet_gateway"
 url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
 arch:
@@ -11,6 +11,8 @@ init: false
 startup: services
 boot: auto
 stage: experimental
+services:
+  - mqtt:want
 map:
   - type: homeassistant_config
     read_only: true
@@ -25,7 +27,7 @@ options:
   domain: "tesla.example.com"
   region: "na"
   mqtt:
-    broker: "core-mosquitto"
+    broker: ""
     topic_base: "tesla/telemetry"
     username: ""
     password: ""
@@ -84,7 +86,7 @@ schema:
   domain: str
   region: list(eu|na|cn)
   mqtt:
-    broker: str
+    broker: str?
     topic_base: str
     username: str?
     password: password?

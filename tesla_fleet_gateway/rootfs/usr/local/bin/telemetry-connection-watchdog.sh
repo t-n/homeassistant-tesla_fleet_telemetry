@@ -178,6 +178,8 @@ main() {
     fi
 
     while IFS= read -r line; do
+        # Forward fleet-telemetry output to add-on logs (pipe would otherwise swallow it).
+        printf '%s\n' "$line"
         parse_fleet_telemetry_line "$line" || true
     done
 

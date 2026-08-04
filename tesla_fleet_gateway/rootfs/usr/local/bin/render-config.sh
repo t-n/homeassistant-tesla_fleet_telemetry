@@ -416,6 +416,43 @@ MQTT_BROKER="$(bashio::config 'mqtt.broker')"
 MQTT_PORT="$(config_default 'mqtt.port' "$DEFAULT_MQTT_PORT")"
 MQTT_USERNAME="$(bashio::config 'mqtt.username')"
 MQTT_PASSWORD="$(bashio::config 'mqtt.password')"
+if [ "$MQTT_BROKER" = "null" ]; then
+    MQTT_BROKER=""
+fi
+if [ "$MQTT_USERNAME" = "null" ]; then
+    MQTT_USERNAME=""
+fi
+if [ "$MQTT_PASSWORD" = "null" ]; then
+    MQTT_PASSWORD=""
+fi
+
+# Prefer Supervisor MQTT discovery (Mosquitto add-on) when broker/creds are blank.
+# Discovery also supplies the Mosquitto "addons" credentials anonymous access often lacks.
+if bashio::services.available "mqtt"; then
+    discovered_host="$(bashio::services 'mqtt' 'host')"
+    discovered_port="$(bashio::services 'mqtt' 'port')"
+    discovered_user="$(bashio::services 'mqtt' 'username')"
+    discovered_password="$(bashio::services 'mqtt' 'password')"
+
+    if [ -z "$MQTT_BROKER" ]; then
+        MQTT_BROKER="$discovered_host"
+        if [ -n "$discovered_port" ] && [ "$discovered_port" != "null" ]; then
+            MQTT_PORT="$discovered_port"
+        fi
+        bashio::log.info "ℹ️ MQTT broker auto-discovered from Supervisor"
+        bashio::log.info "⎣ Using ${MQTT_BROKER}:${MQTT_PORT}"
+    fi
+
+    if [ -z "$MQTT_USERNAME" ] && [ -z "$MQTT_PASSWORD" ]; then
+        MQTT_USERNAME="$discovered_user"
+        MQTT_PASSWORD="$discovered_password"
+        if [ -n "$MQTT_USERNAME" ]; then
+            bashio::log.info "ℹ️ MQTT credentials auto-discovered from Supervisor"
+            bashio::log.info "⎣ Username: ${MQTT_USERNAME}"
+        fi
+    fi
+fi
+
 MQTT_TOPIC_BASE="$(bashio::config 'mqtt.topic_base')"
 MQTT_CLIENT_ID="$(config_default 'mqtt.client_id' "$DEFAULT_MQTT_CLIENT_ID")"
 MQTT_QOS="$(config_default 'mqtt.qos' "$DEFAULT_MQTT_QOS")"
@@ -490,7 +527,7 @@ if [ ! -f "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" ] && [ -f "${HOMEASSISTANT_CONFIG_
 fi
 
 case "$MQTT_BROKER" in
-    tcp://*|ssl://*|ws://*|wss://*)
+    ""|tcp://*|ssl://*|ws://*|wss://*)
         ;;
     *)
         MQTT_BROKER="tcp://${MQTT_BROKER}"
@@ -870,10 +907,15 @@ else
         "Before applying Fleet Telemetry config, place the private key there and enable hosts.telemetry_enabled"
 fi
 
+if [ -z "$MQTT_BROKER" ]; then
+    fail_next_step \
+        "MQTT broker is not configured and no Supervisor mqtt service was found" \
+        "Install the Mosquitto broker add-on, or set mqtt.broker to a reachable host (with host_network, prefer the HA host LAN IP — Docker names like core-mosquitto are unreliable)"
+fi
 if { [ -n "$MQTT_USERNAME" ] && [ -z "$MQTT_PASSWORD" ]; } || { [ -z "$MQTT_USERNAME" ] && [ -n "$MQTT_PASSWORD" ]; }; then
     fail_next_step \
         "MQTT username and password must both be set or both be empty" \
-        "Set both mqtt.username and mqtt.password, or clear both if the broker allows anonymous access"
+        "Set both mqtt.username and mqtt.password, clear both to use Supervisor-discovered Mosquitto credentials, or clear both if the broker allows anonymous access"
 fi
 log_success "MQTT configuration is internally consistent" "Broker: ${MQTT_BROKER}:${MQTT_PORT}; topic base: ${MQTT_TOPIC_BASE}"
 

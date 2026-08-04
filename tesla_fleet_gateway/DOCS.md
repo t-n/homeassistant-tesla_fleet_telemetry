@@ -21,7 +21,7 @@ Before installing:
 3. A public DNS name you control, for example `tesla.example.com`.
 4. TLS certificates that include **both** `<domain>` and `telemetry.<domain>` (Let's Encrypt add-on recommended; default paths `/ssl/fullchain.pem` and `/ssl/privkey.pem`).
 5. Ability to forward **WAN port 443** to this host's add-on TLS port (default **1443**).
-6. MQTT broker reachable from the add-on (default `core-mosquitto`).
+6. MQTT broker reachable from the add-on (leave blank to auto-use the Mosquitto add-on).
 7. Vehicle firmware that supports Fleet Telemetry (roughly **2023.20.6+**; some options need newer firmware).
 
 ## How the pieces fit together
@@ -81,7 +81,7 @@ Minimum options:
 
 - **Domain** — public hostname
 - **Region** — matches your Tesla developer app / account region
-- **MQTT** — broker (`core-mosquitto` by default), topic base (default `tesla/telemetry`), credentials if required
+- **MQTT** — leave broker/username/password blank to auto-discover the Mosquitto add-on; or set an explicit host (with host networking, prefer the HA LAN IP over `core-mosquitto`), topic base, and credentials if required
 - **Hosts → PEM enabled** — usually on
 - **Hosts → Telemetry enabled** — leave **off** until the telemetry subdomain is registered and TLS is ready
 - **Advanced** — TLS port, cert/key paths under `/ssl/` if not using the Let's Encrypt defaults
