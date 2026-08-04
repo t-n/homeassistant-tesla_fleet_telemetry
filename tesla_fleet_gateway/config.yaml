@@ -1,6 +1,6 @@
 name: "Tesla Fleet Gateway"
 description: "Single-host Tesla PEM and Fleet Telemetry gateway"
-version: "0.2.5"
+version: "0.2.6"
 slug: "tesla_fleet_gateway"
 url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
 arch:
@@ -31,7 +31,7 @@ options:
     password: ""
   hosts:
     pem_enabled: true
-    telemetry_enabled: false
+    telemetry_enabled: true
   advanced:
     tls_port: 1443
     telemetry_host: ""
@@ -41,12 +41,6 @@ options:
   vin_allowlist: []
   telemetry_fields:
     - name: "Soc"
-      interval_seconds: 60
-    - name: "RatedRange"
-      interval_seconds: 60
-    - name: "IdealBatteryRange"
-      interval_seconds: 60
-    - name: "ChargeRateMilePerHour"
       interval_seconds: 1
     - name: "VehicleSpeed"
       interval_seconds: 10
@@ -60,9 +54,8 @@ options:
       interval_seconds: 60
     - name: "DetailedChargeState"
       interval_seconds: 1
+      resend_interval_seconds: 300
     - name: "ChargeState"
-      interval_seconds: 1
-    - name: "ACChargingPower"
       interval_seconds: 1
     - name: "DCChargingPower"
       interval_seconds: 1
@@ -70,10 +63,22 @@ options:
       interval_seconds: 1
     - name: "Locked"
       interval_seconds: 1
+      resend_interval_seconds: 300
     - name: "DoorState"
       interval_seconds: 1
+      resend_interval_seconds: 300
     - name: "DriverSeatOccupied"
       interval_seconds: 1
+      resend_interval_seconds: 300
+    - name: "ACChargingPower"
+      interval_seconds: 1
+    - name: "IdealBatteryRange"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "ChargeRateMilePerHour"
+      interval_seconds: 1
+    - name: "RatedRange"
+      interval_seconds: 10
       resend_interval_seconds: 300
 schema:
   domain: str

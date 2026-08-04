@@ -29,23 +29,23 @@ ALLOWED_FLEET_API_HOSTS = frozenset(
 )
 # Keep intervals aligned with config.yaml default telemetry_fields.
 DEFAULT_TELEMETRY_FIELDS = {
-    "Soc": {"interval_seconds": 60},
-    "RatedRange": {"interval_seconds": 60},
-    "IdealBatteryRange": {"interval_seconds": 60},
-    "ChargeRateMilePerHour": {"interval_seconds": 1},
+    "Soc": {"interval_seconds": 1},
     "VehicleSpeed": {"interval_seconds": 10},
     "Location": {"interval_seconds": 10},
     "ChargeAmps": {"interval_seconds": 1},
     "InsideTemp": {"interval_seconds": 60},
     "OutsideTemp": {"interval_seconds": 60},
-    "DetailedChargeState": {"interval_seconds": 1},
+    "DetailedChargeState": {"interval_seconds": 1, "resend_interval_seconds": 300},
     "ChargeState": {"interval_seconds": 1},
-    "ACChargingPower": {"interval_seconds": 1},
     "DCChargingPower": {"interval_seconds": 1},
     "TimeToFullCharge": {"interval_seconds": 1},
-    "Locked": {"interval_seconds": 1},
-    "DoorState": {"interval_seconds": 1},
+    "Locked": {"interval_seconds": 1, "resend_interval_seconds": 300},
+    "DoorState": {"interval_seconds": 1, "resend_interval_seconds": 300},
     "DriverSeatOccupied": {"interval_seconds": 1, "resend_interval_seconds": 300},
+    "ACChargingPower": {"interval_seconds": 1},
+    "IdealBatteryRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "ChargeRateMilePerHour": {"interval_seconds": 1},
+    "RatedRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
 }
 
 
