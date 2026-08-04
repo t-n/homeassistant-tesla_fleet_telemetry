@@ -5,6 +5,10 @@ Public monorepo for:
 - `tesla_fleet_gateway` Home Assistant add-on (Fleet Telemetry gateway + PEM hosting)
 - `tesla_fleet_stream` custom integration (live MQTT entities in Home Assistant)
 
+> **Beta / work in progress.** This project is experimental and changing quickly.
+> Expect breaking changes, incomplete docs, and rough edges. Use at your own risk;
+> do not rely on it for production-critical automations yet.
+
 ## Prerequisite
 
 This project assumes the official Home Assistant `tesla_fleet` integration is already configured and working.
