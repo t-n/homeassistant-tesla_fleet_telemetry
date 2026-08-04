@@ -29,11 +29,21 @@ will be removed or replaced with entity `device_entry` linking in a future relea
 2. Install **Tesla Fleet Gateway**.
 3. Configure domain, MQTT, and TLS settings.
 
-### 2) Integration
+### 2) Integration (`tesla_fleet_stream`)
 
-1. Install `tesla_fleet_stream` from HACS (or copy `custom_components/tesla_fleet_stream`).
-2. Add integration from **Settings -> Devices & services**.
-3. Reuse Tesla Fleet app credentials in the config flow when prompted.
+This integration is **not** in the default HACS store. Add it as a
+[custom repository](https://www.hacs.xyz/docs/faq/custom_repositories/):
+
+1. Open **HACS**.
+2. Click the **⋮** menu (top right) → **Custom repositories**.
+3. Repository URL: `https://github.com/t-n/homeassistant-tesla_fleet_telemetry`
+4. Type: **Integration**
+5. Click **Add**, then download **Tesla Fleet Stream** from HACS.
+6. Restart Home Assistant.
+7. Add the integration under **Settings → Devices & services**.
+8. Reuse Tesla Fleet app credentials in the config flow when prompted.
+
+Manual alternative: copy `custom_components/tesla_fleet_stream` into your HA `custom_components` folder.
 
 ## Documentation
 
