@@ -1,0 +1,12 @@
+{
+  "domain": "tesla_fleet_stream",
+  "name": "Tesla Fleet Stream",
+  "codeowners": ["@t-n"],
+  "config_flow": true,
+  "dependencies": ["application_credentials", "mqtt"],
+  "documentation": "https://github.com/t-n/homeassistant-tesla_fleet_telemetry",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.3.0"
+}

@@ -1,0 +1,35 @@
+{
+  "host": "${TELEMETRY_BIND_HOST}",
+  "port": ${TELEMETRY_BIND_PORT},
+  "log_level": "${TELEMETRY_LOG_LEVEL}",
+  "json_log_enable": true,
+  "reliable_ack": ${TELEMETRY_RELIABLE_ACK},
+  "transmit_decoded_records": ${TELEMETRY_TRANSMIT_DECODED_RECORDS},
+  "delivery_policy": "${TELEMETRY_DELIVERY_POLICY}",
+  "logger": {
+    "verbose": false
+  },
+  "records": {
+    "alerts": ["logger", "mqtt"],
+    "connectivity": ["logger", "mqtt"],
+    "errors": ["logger", "mqtt"],
+    "V": ["logger", "mqtt"]
+  },
+  "tls": {
+    "server_cert": "${EDGE_TLS_CERT}",
+    "server_key": "${EDGE_TLS_KEY}"
+  },
+  "mqtt": {
+    "broker": "${MQTT_BROKER}:${MQTT_PORT}",
+    "client_id": "${MQTT_CLIENT_ID}",
+    "username": "${MQTT_USERNAME}",
+    "password": "${MQTT_PASSWORD}",
+    "topic_base": "${MQTT_TOPIC_BASE}",
+    "qos": ${MQTT_QOS},
+    "retained": ${MQTT_RETAINED},
+    "connect_timeout_ms": ${MQTT_CONNECT_TIMEOUT_MS},
+    "publish_timeout_ms": ${MQTT_PUBLISH_TIMEOUT_MS},
+    "keep_alive_seconds": ${MQTT_KEEP_ALIVE_SECONDS}
+  }
+}
+

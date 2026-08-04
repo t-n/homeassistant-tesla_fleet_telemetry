@@ -1,0 +1,57 @@
+configuration:
+  domain:
+    name: Domain
+    description: Public hostname for Tesla PEM hosting and telemetry. Forward port 443 on this domain to the gateway listener port below.
+  region:
+    name: Fleet API region
+    description: Fallback Fleet API region when the tesla_fleet_stream handoff file is missing. Usually overridden by integration OAuth.
+  mqtt:
+    name: MQTT
+    description: Broker where decoded telemetry is published for tesla_fleet_stream.
+    username:
+      name: Username
+      description: Optional MQTT broker username. Leave blank with password for anonymous access.
+    password:
+      name: Password
+      description: Optional MQTT broker password.
+  hosts:
+    name: Hosts
+    description: Control PEM on the main domain and mTLS streaming on the telemetry subdomain.
+    pem_enabled:
+      name: Main domain (PEM)
+      description: Serve the Tesla public key PEM on your domain. Required for virtual key pairing and developer app registration.
+    telemetry_enabled:
+      name: Telemetry subdomain (mTLS streaming)
+      description: Enable after registering telemetry.<domain> in Tesla. Routes vehicle mTLS to fleet-telemetry and auto-applies telemetry config on startup.
+  advanced:
+    name: Advanced
+    description: Optional overrides. Defaults work for most setups.
+    tls_port:
+      name: Gateway listener port
+      description: TLS port this add-on listens on. Forward your domain port 443 to this port on your router.
+    telemetry_host:
+      name: Telemetry hostname override
+      description: Hostname for vehicle mTLS (default telemetry.<domain>). Serves PEM until telemetry subdomain streaming is enabled.
+    telemetry_access_log:
+      name: Request access log
+      description: Log PEM, telemetry, and OAuth requests in the add-on log (includes Tesla Range requests to the public key).
+    certfile:
+      name: TLS certificate file
+      description: Certificate chain file used by nginx and fleet-telemetry (default /ssl/fullchain.pem from the Let's Encrypt add-on).
+    keyfile:
+      name: TLS private key file
+      description: Private key file matching the TLS certificate (default /ssl/privkey.pem from the Let's Encrypt add-on).
+  vin_allowlist:
+    name: VIN allowlist
+    description: Optional list of VINs to include in telemetry activation. Leave empty to include all vehicles returned by Fleet API.
+  telemetry_fields:
+    name: Telemetry fields
+    description: >-
+      Vehicle data fields streamed from Tesla. Pick from the dropdown and set
+      interval_seconds (minimum seconds between updates when the value changes)
+      and optionally resend_interval_seconds (periodic resend even when unchanged;
+      requires vehicle firmware 2024.44.32+; omit for Tesla's change-only default).
+      Only fields with a matching entity in the tesla_fleet_stream integration
+      appear in Home Assistant; others still reach MQTT. Leave empty to use the built-in default set. On every add-on
+      start, options are reconciled into fleet_telemetry_config.json and pushed
+      to Tesla when needed — save options and restart the add-on.

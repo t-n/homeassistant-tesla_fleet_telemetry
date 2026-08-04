@@ -1,0 +1,44 @@
+{
+  "application_credentials": {
+    "description": "Tesla OAuth requires a developer application Client ID and Client Secret.\n\n1. Create an application at [Tesla Developer]({developer_url}).\n2. Set **Allowed Redirect URI** to `{redirect_url}`.\n3. Copy the Client ID and Client Secret here.\n\nYou can reuse the same application as the official Tesla Fleet integration."
+  },
+  "config": {
+    "abort": {
+      "already_configured": "Tesla Fleet Stream is already configured.",
+      "missing_credentials": "Add Tesla application credentials to continue setup.",
+      "oauth_error": "Tesla OAuth failed. Check application credentials and redirect URI.",
+      "oauth_failed": "Tesla OAuth failed. Check application credentials and redirect URI.",
+      "oauth_timeout": "Tesla OAuth timed out. Try again.",
+      "oauth_unauthorized": "Tesla rejected the authorization. Re-authenticate the integration.",
+      "reauth_successful": "Tesla re-authentication succeeded."
+    },
+    "step": {
+      "credentials": {
+        "title": "Tesla application credentials",
+        "description": "Enter the Client ID and Client Secret from your Tesla developer application. Use redirect URI `{redirect_url}` in the Tesla developer portal."
+      },
+      "reuse_tesla_fleet": {
+        "title": "Reuse Tesla Fleet credentials",
+        "description": "Application credentials from the official Tesla Fleet integration were found. You can reuse them for streaming telemetry.",
+        "data": {
+          "action": "Credential source"
+        }
+      },
+      "pick_implementation": {
+        "title": "Authorize Tesla",
+        "description": "Sign in with Tesla to allow Home Assistant to access your account."
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Tesla",
+        "description": "Tesla authorization expired or was revoked. Sign in again to restore telemetry."
+      },
+      "mqtt": {
+        "title": "MQTT telemetry settings",
+        "description": "Match the MQTT topic base with the Tesla Fleet Gateway add-on."
+      },
+      "init": {
+        "title": "MQTT telemetry settings"
+      }
+    }
+  }
+}

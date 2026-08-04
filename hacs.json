@@ -1,0 +1,7 @@
+{
+  "name": "Tesla Fleet Stream",
+  "homeassistant": "2026.8.0",
+  "domains": ["tesla_fleet_stream"],
+  "content_in_root": false,
+  "render_readme": true
+}

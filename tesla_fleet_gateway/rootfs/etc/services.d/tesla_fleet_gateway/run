@@ -1,0 +1,142 @@
+#!/usr/bin/with-contenv bashio
+
+set -euo pipefail
+
+RUN_ID="$(date -Iseconds)"
+ADDON_VERSION="$(bashio::addon.version)"
+bashio::log.info "========== TESLA FLEET GATEWAY START v${ADDON_VERSION} ${RUN_ID} =========="
+
+# This helper relies on the bashio environment already prepared for the app.
+source /usr/local/bin/render-config.sh
+
+if [ "${VEHICLE_COMMAND_ENABLED:-false}" = "true" ]; then
+    bashio::log.info "Starting tesla-http-proxy"
+    export TESLA_HTTP_PROXY_HOST
+    export TESLA_HTTP_PROXY_PORT
+    export TESLA_HTTP_PROXY_TLS_CERT
+    export TESLA_HTTP_PROXY_TLS_KEY
+    export TESLA_HTTP_PROXY_TIMEOUT
+    export TESLA_KEY_FILE
+
+    TESLA_HTTP_PROXY_HOST="${VEHICLE_COMMAND_BIND_HOST}"
+    TESLA_HTTP_PROXY_PORT="${VEHICLE_COMMAND_BIND_PORT}"
+    TESLA_HTTP_PROXY_TLS_CERT="${EDGE_TLS_CERT}"
+    TESLA_HTTP_PROXY_TLS_KEY="${EDGE_TLS_KEY}"
+    TESLA_HTTP_PROXY_TIMEOUT="${VEHICLE_COMMAND_TIMEOUT_SECONDS}s"
+    TESLA_KEY_FILE="${VEHICLE_COMMAND_PRIVATE_KEY_PATH}"
+
+    tesla-http-proxy 2>&1 &
+    PROXY_PID=$!
+    sleep 2
+else
+    PROXY_PID=""
+fi
+
+OAUTH_CALLBACK_PID=""
+
+if handoff_access_token_valid "$DEFAULT_TESLA_OAUTH_HANDOFF_FILE"; then
+    bashio::log.info "Using Tesla OAuth handoff from tesla_fleet_stream integration"
+    bashio::log.info "⎣ Handoff file: ${DEFAULT_TESLA_OAUTH_HANDOFF_FILE}"
+elif [ -f "$DEFAULT_TESLA_OAUTH_INTEGRATION_TOKEN_FILE" ] \
+    && jq -e '.refresh_token | type == "string" and length > 0' "$DEFAULT_TESLA_OAUTH_INTEGRATION_TOKEN_FILE" >/dev/null 2>&1; then
+    bashio::log.info "Using legacy Tesla OAuth tokens from tesla_fleet_stream integration"
+    bashio::log.info "⎣ Token cache: ${DEFAULT_TESLA_OAUTH_INTEGRATION_TOKEN_FILE}"
+else
+    bashio::log.info "Starting Tesla OAuth callback service"
+    /usr/local/bin/tesla_oauth.py serve &
+    OAUTH_CALLBACK_PID=$!
+    sleep 1
+    if ! kill -0 "$OAUTH_CALLBACK_PID" 2>/dev/null; then
+        if [ -n "${PROXY_PID:-}" ] && kill -0 "$PROXY_PID" 2>/dev/null; then
+            kill "$PROXY_PID"
+            wait "$PROXY_PID" 2>/dev/null || true
+        fi
+        bashio::exit.nok "Tesla OAuth callback service failed to start"
+    fi
+fi
+
+bashio::log.info "Starting fleet-telemetry"
+TELEMETRY_PIPE="/run/fleet-telemetry.pipe"
+rm -f "$TELEMETRY_PIPE"
+mkfifo "$TELEMETRY_PIPE"
+/usr/local/bin/telemetry-connection-watchdog.sh < "$TELEMETRY_PIPE" &
+WATCHDOG_PID=$!
+export SUPPRESS_TLS_HANDSHAKE_ERROR_LOGGING=true
+fleet-telemetry -config /etc/fleet-telemetry/config.json > "$TELEMETRY_PIPE" 2>&1 &
+TELEMETRY_PID=$!
+sleep 1
+if ! kill -0 "$TELEMETRY_PID" 2>/dev/null; then
+    bashio::log.error "fleet-telemetry failed to start before nginx edge"
+    bashio::exit.nok "fleet-telemetry must be running before the SNI passthrough listener starts"
+fi
+
+bashio::log.info "Starting nginx edge"
+nginx -c /etc/nginx/nginx.conf -g 'daemon off;' &
+NGINX_PID=$!
+sleep 1
+if ! /usr/local/bin/check-pem-reachability.sh; then
+    bashio::log.warning "PEM reachability self-check reported problems; review ACTION REQUIRED messages above"
+fi
+
+if [ "${TESLA_OAUTH_TOKENS_VERIFIED:-false}" = "true" ] && [ "${VEHICLE_COMMAND_ENABLED:-false}" = "true" ] && [ "${FLEET_TELEMETRY_AUTO_APPLY:-true}" = "true" ]; then
+    bashio::log.info "Starting Fleet Telemetry activation"
+    if ! /usr/local/bin/auto-apply-telemetry-config.sh; then
+        bashio::log.warning "Fleet Telemetry auto-apply reported problems; review ACTION REQUIRED messages above"
+    fi
+elif [ "${FLEET_TELEMETRY_AUTO_APPLY:-true}" = "true" ] && [ "${VEHICLE_COMMAND_ENABLED:-false}" = "true" ]; then
+    bashio::log.warning "Skipping Fleet Telemetry auto-apply because OAuth tokens could not be verified"
+fi
+
+cleanup() {
+    if [ "${CLEANUP_DONE:-false}" = "true" ]; then
+        return 0
+    fi
+    CLEANUP_DONE=true
+
+    bashio::log.info "========== TESLA FLEET GATEWAY STOP v${ADDON_VERSION} ${RUN_ID} =========="
+
+    source /usr/local/bin/telemetry-connection-state.sh
+    telemetry_state_mark_shutdown_disconnects
+
+    if [ -n "${WATCHDOG_PID:-}" ] && kill -0 "$WATCHDOG_PID" 2>/dev/null; then
+        kill "$WATCHDOG_PID" 2>/dev/null || true
+        wait "$WATCHDOG_PID" 2>/dev/null || true
+    fi
+
+    if [ -n "${TELEMETRY_PID:-}" ] && kill -0 "$TELEMETRY_PID" 2>/dev/null; then
+        kill "$TELEMETRY_PID" 2>/dev/null || true
+        wait "$TELEMETRY_PID" 2>/dev/null || true
+    fi
+
+    if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+        kill "$NGINX_PID"
+        wait "$NGINX_PID" 2>/dev/null || true
+    fi
+
+    if [ -n "${PROXY_PID:-}" ] && kill -0 "$PROXY_PID" 2>/dev/null; then
+        kill "$PROXY_PID"
+        wait "$PROXY_PID" 2>/dev/null || true
+    fi
+
+    if [ -n "${OAUTH_CALLBACK_PID:-}" ] && kill -0 "$OAUTH_CALLBACK_PID" 2>/dev/null; then
+        kill "$OAUTH_CALLBACK_PID"
+        wait "$OAUTH_CALLBACK_PID" 2>/dev/null || true
+    fi
+}
+
+trap cleanup EXIT INT TERM
+
+if wait "$TELEMETRY_PID"; then
+    EXIT_CODE=0
+else
+    EXIT_CODE=$?
+    if [ "$EXIT_CODE" -eq 143 ]; then
+        bashio::log.info "fleet-telemetry stopped during add-on shutdown"
+    else
+        bashio::log.error "fleet-telemetry exited with status ${EXIT_CODE}"
+        bashio::log.error "Check the preceding logs for configuration or connectivity errors such as MQTT authentication, broker reachability, TLS files, or port conflicts."
+    fi
+fi
+
+cleanup
+exit "$EXIT_CODE"

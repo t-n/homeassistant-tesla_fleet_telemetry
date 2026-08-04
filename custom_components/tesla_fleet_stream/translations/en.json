@@ -1,0 +1,91 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "state": {
+        "name": "Status (live)"
+      },
+      "vehicle_state_locked": {
+        "name": "Lock (live)"
+      },
+      "vehicle_state_driver_seat_occupied": {
+        "name": "Driver seat occupied (live)",
+        "state": {
+          "on": "Occupied",
+          "off": "Unoccupied"
+        }
+      },
+      "vehicle_state_df": {
+        "name": "Front driver door (live)"
+      },
+      "vehicle_state_dr": {
+        "name": "Rear driver door (live)"
+      },
+      "vehicle_state_pf": {
+        "name": "Front passenger door (live)"
+      },
+      "vehicle_state_pr": {
+        "name": "Rear passenger door (live)"
+      },
+      "vehicle_state_ft": {
+        "name": "Frunk (live)"
+      },
+      "vehicle_state_rt": {
+        "name": "Trunk (live)"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Location (live)"
+      }
+    },
+    "sensor": {
+      "charge_state_battery_level": {
+        "name": "Battery level (live)"
+      },
+      "charge_state_battery_range": {
+        "name": "Battery range (live)"
+      },
+      "charge_state_ideal_battery_range": {
+        "name": "Ideal battery range (live)"
+      },
+      "charge_state_charge_rate": {
+        "name": "Charge rate (live)"
+      },
+      "charge_state_charger_actual_current": {
+        "name": "Charger current (live)"
+      },
+      "ac_charging_power": {
+        "name": "AC charging power (live)"
+      },
+      "charge_state_charger_power": {
+        "name": "Charger power (live)"
+      },
+      "dc_charging_power": {
+        "name": "DC charging power (live)"
+      },
+      "charge_state_charging_state": {
+        "name": "Charging (live)",
+        "state": {
+          "charging": "Charging",
+          "complete": "Complete",
+          "disconnected": "Disconnected",
+          "no_power": "No power",
+          "starting": "Starting",
+          "stopped": "Stopped"
+        }
+      },
+      "charge_state_minutes_to_full_charge": {
+        "name": "Time to full charge (live)"
+      },
+      "climate_state_inside_temp": {
+        "name": "Inside temperature (live)"
+      },
+      "climate_state_outside_temp": {
+        "name": "Outside temperature (live)"
+      },
+      "drive_state_speed": {
+        "name": "Speed (live)"
+      }
+    }
+  }
+}

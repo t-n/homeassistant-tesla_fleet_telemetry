@@ -1,0 +1,91 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "state": {
+        "name": "Status (live)"
+      },
+      "vehicle_state_locked": {
+        "name": "Lås (live)"
+      },
+      "vehicle_state_driver_seat_occupied": {
+        "name": "Förarstol upptagen (live)",
+        "state": {
+          "on": "Upptagen",
+          "off": "Ledig"
+        }
+      },
+      "vehicle_state_df": {
+        "name": "Förardörr (live)"
+      },
+      "vehicle_state_dr": {
+        "name": "Vänster bakdörr (live)"
+      },
+      "vehicle_state_pf": {
+        "name": "Höger framdörr (live)"
+      },
+      "vehicle_state_pr": {
+        "name": "Bakre passagerardörr (live)"
+      },
+      "vehicle_state_ft": {
+        "name": "Frunk (främre bagageutrymme) (live)"
+      },
+      "vehicle_state_rt": {
+        "name": "Bagage (live)"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Plats (live)"
+      }
+    },
+    "sensor": {
+      "charge_state_battery_level": {
+        "name": "Batterinivå (live)"
+      },
+      "charge_state_battery_range": {
+        "name": "Batteriräckvidd (live)"
+      },
+      "charge_state_ideal_battery_range": {
+        "name": "Idealisk batteriräckvidd (live)"
+      },
+      "charge_state_charge_rate": {
+        "name": "Laddningshastighet (live)"
+      },
+      "charge_state_charger_actual_current": {
+        "name": "Laddarens ström (live)"
+      },
+      "ac_charging_power": {
+        "name": "AC-laddningseffekt (live)"
+      },
+      "charge_state_charger_power": {
+        "name": "Laddarens effekt (live)"
+      },
+      "dc_charging_power": {
+        "name": "DC-laddningseffekt (live)"
+      },
+      "charge_state_charging_state": {
+        "name": "Laddar (live)",
+        "state": {
+          "charging": "Laddar",
+          "complete": "Full",
+          "disconnected": "Frånkopplad",
+          "no_power": "Ingen ström",
+          "starting": "Startar",
+          "stopped": "Stoppad"
+        }
+      },
+      "charge_state_minutes_to_full_charge": {
+        "name": "Tid till full laddning (live)"
+      },
+      "climate_state_inside_temp": {
+        "name": "Innetemperatur (live)"
+      },
+      "climate_state_outside_temp": {
+        "name": "Utetemperatur (live)"
+      },
+      "drive_state_speed": {
+        "name": "Hastighet (live)"
+      }
+    }
+  }
+}

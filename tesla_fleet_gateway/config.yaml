@@ -1,0 +1,100 @@
+name: "Tesla Fleet Gateway"
+description: "Single-host Tesla PEM and Fleet Telemetry gateway"
+version: "0.2.0"
+slug: "tesla_fleet_gateway"
+url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
+arch:
+  - aarch64
+  - amd64
+host_network: true
+init: false
+startup: services
+boot: auto
+stage: experimental
+map:
+  - type: homeassistant_config
+    read_only: true
+    path: /homeassistant
+  - type: ssl
+  - type: share
+    read_only: false
+  - type: addon_config
+    read_only: false
+    path: /addon_config
+options:
+  domain: "tesla.example.com"
+  region: "na"
+  mqtt:
+    broker: "core-mosquitto"
+    topic_base: "tesla/telemetry"
+    username: ""
+    password: ""
+  hosts:
+    pem_enabled: true
+    telemetry_enabled: false
+  advanced:
+    tls_port: 1443
+    telemetry_host: ""
+    telemetry_access_log: true
+    certfile: "/ssl/fullchain.pem"
+    keyfile: "/ssl/privkey.pem"
+  vin_allowlist: []
+  telemetry_fields:
+    - name: "Soc"
+      interval_seconds: 60
+    - name: "RatedRange"
+      interval_seconds: 60
+    - name: "IdealBatteryRange"
+      interval_seconds: 60
+    - name: "ChargeRateMilePerHour"
+      interval_seconds: 1
+    - name: "VehicleSpeed"
+      interval_seconds: 10
+    - name: "Location"
+      interval_seconds: 10
+    - name: "ChargeAmps"
+      interval_seconds: 1
+    - name: "InsideTemp"
+      interval_seconds: 60
+    - name: "OutsideTemp"
+      interval_seconds: 60
+    - name: "DetailedChargeState"
+      interval_seconds: 1
+    - name: "ChargeState"
+      interval_seconds: 1
+    - name: "ACChargingPower"
+      interval_seconds: 1
+    - name: "DCChargingPower"
+      interval_seconds: 1
+    - name: "TimeToFullCharge"
+      interval_seconds: 1
+    - name: "Locked"
+      interval_seconds: 1
+    - name: "DoorState"
+      interval_seconds: 1
+    - name: "DriverSeatOccupied"
+      interval_seconds: 1
+      resend_interval_seconds: 300
+schema:
+  domain: str
+  region: list(eu|na|cn)
+  mqtt:
+    broker: str
+    topic_base: str
+    username: str?
+    password: password?
+  hosts:
+    pem_enabled: bool
+    telemetry_enabled: bool
+  advanced:
+    tls_port: port
+    telemetry_host: str?
+    telemetry_access_log: bool
+    certfile: str
+    keyfile: str
+  vin_allowlist:
+    - str
+  telemetry_fields:
+    - name: list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied)
+      interval_seconds: int(1,)?
+      resend_interval_seconds: int(1,)?

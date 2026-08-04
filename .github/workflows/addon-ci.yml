@@ -1,0 +1,13 @@
+name: Add-on CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate add-on config
+        run: test -f tesla_fleet_gateway/config.yaml

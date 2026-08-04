@@ -1,0 +1,6 @@
+This repository builds and redistributes binaries from:
+
+- https://github.com/teslamotors/fleet-telemetry (Apache-2.0)
+- https://github.com/teslamotors/vehicle-command (Apache-2.0)
+
+See upstream repositories for full license text and notices.
