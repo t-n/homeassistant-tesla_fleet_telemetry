@@ -530,16 +530,15 @@ else
     STREAM_ACCESS_LOG="access_log off;"
 fi
 
-# User-fixable startup failures must not exit non-zero: s6 would restart the
-# service every second and flood the logs. Ask Supervisor to stop the add-on.
+# User-fixable startup failures must not leave the service supervised: s6 would
+# restart every second. Exit so the finish script can halt the container.
+# Exit 0 so Supervisor marks the add-on stopped (not error) after ACTION REQUIRED.
 stop_after_config_error() {
     local message="$1"
 
     bashio::log.fatal "${message}"
     bashio::log.fatal "Stopping the add-on. Fix the configuration, then start it again."
-    bashio::addon.stop
-    # Supervisor stop is asynchronous; stay put so s6 cannot restart-loop first.
-    exec sleep infinity
+    exit 0
 }
 
 fail_next_step() {

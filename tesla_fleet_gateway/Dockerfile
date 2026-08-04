@@ -70,5 +70,7 @@ COPY --from=vehicle_command_build /out/tesla-keygen /usr/local/bin/tesla-keygen
 
 COPY rootfs/ /
 
-RUN chmod 0755 /usr/local/bin/*.sh /usr/local/bin/*.py /etc/services.d/tesla_fleet_gateway/run \
+RUN chmod 0755 /usr/local/bin/*.sh /usr/local/bin/*.py \
+    /etc/services.d/tesla_fleet_gateway/run \
+    /etc/services.d/tesla_fleet_gateway/finish \
     && rm -f /etc/nginx/nginx.conf.template

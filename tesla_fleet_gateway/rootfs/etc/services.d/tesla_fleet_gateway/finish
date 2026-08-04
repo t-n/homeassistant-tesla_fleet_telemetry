@@ -1,0 +1,12 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Take down the S6 supervision tree when the gateway service exits
+# (same pattern as the Let's Encrypt add-on).
+# ==============================================================================
+if [[ "${1}" -eq 256 ]]; then
+  e="${2}"
+else
+  e="${1}"
+fi
+echo "${e}" > /run/s6-linux-init-container-results/exitcode
+exec /run/s6/basedir/bin/halt
