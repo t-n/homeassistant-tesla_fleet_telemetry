@@ -49,6 +49,7 @@ class OAuth2FlowHandler(
     """Handle Tesla OAuth, credentials, and MQTT settings."""
 
     DOMAIN = DOMAIN
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow handler."""

@@ -20,7 +20,7 @@ CONF_ENABLED_PLATFORMS = "enabled_platforms"
 CONF_FLEET_API_BASE = "fleet_api_base"
 CONF_TOPIC_BASE = "topic_base"
 
-DEFAULT_ATTACH_TO_EXISTING_DEVICE = False
+DEFAULT_ATTACH_TO_EXISTING_DEVICE = True
 DEFAULT_DEVICE_DOMAIN = "tesla_fleet"
 DEFAULT_ENABLED_PLATFORMS = ["sensor", "binary_sensor", "device_tracker"]
 DEFAULT_FLEET_API_BASE = "https://fleet-api.prd.na.vn.cloud.tesla.com"

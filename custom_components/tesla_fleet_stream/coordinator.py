@@ -10,6 +10,7 @@ from typing import Any
 
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from homeassistant.components.mqtt.models import ReceiveMessage
 from homeassistant.components.mqtt.subscription import (
@@ -303,14 +304,7 @@ class TeslaFleetStreamRuntime:
         self._vehicles.setdefault(vin, VehicleTelemetryState()).location = location
 
     def get_device_info(self, vin: str) -> DeviceInfo:
-        """Return DeviceInfo for a VIN."""
-        # NOTE: Returning another integration's identifiers in device_info is
-        # deprecated in HA 2026.8 (single config-entry-owned devices). Keep
-        # this for compatibility now; migrate to linking entities via
-        # self.device_entry and a config-entry migration in a future release.
-        if self.attach_to_existing_device:
-            return DeviceInfo(identifiers={(self.device_domain, vin)})
-
+        """Return DeviceInfo for a dedicated tesla_fleet_stream device."""
         return DeviceInfo(
             identifiers={(self.entry.domain, vin)},
             manufacturer="Tesla",
@@ -318,6 +312,26 @@ class TeslaFleetStreamRuntime:
             serial_number=vin,
             default_name=vin,
         )
+
+    def resolve_linked_device(self, vin: str) -> DeviceEntry | None:
+        """Return the Tesla Fleet device to link entities to, if configured.
+
+        HA 2026.8+ devices are owned by a single config entry. Linking is done by
+        setting Entity.device_entry — never by putting another integration's
+        identifiers in DeviceInfo.
+        """
+        if not self.attach_to_existing_device:
+            return None
+
+        registry = dr.async_get(self.hass)
+        identifier = (self.device_domain, vin)
+        devices = registry.async_get_devices(identifiers={identifier})
+        for device in devices:
+            for entry_id in device.config_entries:
+                entry = self.hass.config_entries.async_get_entry(entry_id)
+                if entry is not None and entry.domain == self.device_domain:
+                    return device
+        return None
 
     @callback
     def _handle_metric_message(self, msg: ReceiveMessage) -> None:

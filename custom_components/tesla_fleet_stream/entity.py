@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import update_signal, vehicle_connectivity_signal
@@ -24,6 +24,8 @@ class TeslaFleetStreamEntity(RestoreEntity, Entity):
         self._vin = vin
         self._key = key
         self._platform = platform
+        # HA 2026.8+: link to tesla_fleet's device without co-owning it.
+        self.device_entry = runtime.resolve_linked_device(vin)
 
     @property
     def unique_id(self) -> str:
@@ -31,8 +33,14 @@ class TeslaFleetStreamEntity(RestoreEntity, Entity):
         return f"{self._vin.lower()}_{self._key}"
 
     @property
-    def device_info(self):
-        """Return device information."""
+    def device_info(self) -> DeviceInfo | None:
+        """Return device information for a dedicated stream device.
+
+        When linked to an existing Tesla Fleet device via device_entry, return
+        None so this config entry is not added to that device.
+        """
+        if self.device_entry is not None:
+            return None
         return self._runtime.get_device_info(self._vin)
 
     @property

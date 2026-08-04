@@ -1,24 +1,17 @@
 # Home Assistant Tesla Fleet Telemetry
 
+**Beta / work in progress.** This project is experimental and mostly unsupported.
+Expect breaking changes, incomplete docs, and rough edges. Use at your own risk;
+do not rely on it for production-critical automations.
+
 Public monorepo for:
 
 - `tesla_fleet_gateway` Home Assistant add-on (Fleet Telemetry gateway + PEM hosting)
 - `tesla_fleet_stream` custom integration (live MQTT entities in Home Assistant)
 
-> **Beta / work in progress.** This project is experimental and changing quickly.
-> Expect breaking changes, incomplete docs, and rough edges. Use at your own risk;
-> do not rely on it for production-critical automations yet.
-
 ## Prerequisite
 
 This project assumes the official Home Assistant `tesla_fleet` integration is already configured and working.
-
-## Known issue (HA 2026.8+)
-
-New installs default to a dedicated `tesla_fleet_stream` device per vehicle
-(`attach_to_existing_device=false`). The optional attach-to-`tesla_fleet` mode is
-deprecated under Home Assistant 2026.8's single-config-entry device model and
-will be removed or replaced with entity `device_entry` linking in a future release.
 
 ## Install
 

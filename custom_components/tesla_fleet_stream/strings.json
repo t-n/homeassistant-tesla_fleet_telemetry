@@ -38,7 +38,7 @@
         "data": {
           "topic_base": "MQTT topic base",
           "fleet_api_base": "Fleet API base URL",
-          "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices (deprecated in HA 2026.8)",
+          "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
         },
@@ -52,7 +52,7 @@
         "data": {
           "topic_base": "MQTT topic base",
           "fleet_api_base": "Fleet API base URL",
-          "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices (deprecated in HA 2026.8)",
+          "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
         },

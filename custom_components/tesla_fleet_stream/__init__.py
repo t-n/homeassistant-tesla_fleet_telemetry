@@ -7,6 +7,8 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.helper_integration import async_remove_helper_devices
 
 from .const import (
     CONF_ATTACH_TO_EXISTING_DEVICE,
@@ -14,6 +16,7 @@ from .const import (
     CONF_ENABLED_PLATFORMS,
     CONF_FLEET_API_BASE,
     CONF_TOPIC_BASE,
+    DEFAULT_DEVICE_DOMAIN,
     PLATFORMS,
 )
 from .coordinator import TeslaFleetStreamRuntime
@@ -76,6 +79,52 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to HA 2026.8 device_entry linking."""
+    if entry.version < 2:
+        _LOGGER.debug(
+            "Migrating tesla_fleet_stream from version %s to 2 (device_entry linking)",
+            entry.version,
+        )
+        config = {**entry.data, **entry.options}
+        device_domain = config.get(CONF_DEVICE_DOMAIN, DEFAULT_DEVICE_DOMAIN)
+        device_registry = dr.async_get(hass)
+
+        # Old attach mode put tesla_fleet identifiers in DeviceInfo, which either
+        # co-owned the Fleet device or forked a duplicate. Clean those up and
+        # relink entities to the real tesla_fleet device when present.
+        for device in list(
+            dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+        ):
+            for domain, vin in device.identifiers:
+                if domain != device_domain:
+                    continue
+                source = None
+                for candidate in device_registry.async_get_devices(
+                    identifiers={(device_domain, vin)}
+                ):
+                    if candidate.id == device.id:
+                        continue
+                    for entry_id in candidate.config_entries:
+                        cfg = hass.config_entries.async_get_entry(entry_id)
+                        if cfg is not None and cfg.domain == device_domain:
+                            source = candidate
+                            break
+                    if source is not None:
+                        break
+                if source is not None:
+                    async_remove_helper_devices(
+                        hass,
+                        helper_config_entry_id=entry.entry_id,
+                        source_device_id=source.id,
+                    )
+                break
+
+        hass.config_entries.async_update_entry(entry, version=2)
+
+    return True
+
+
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload when options change; ignore OAuth token-only data updates."""
     runtime: TeslaFleetStreamRuntime | None = getattr(entry, "runtime_data", None)
@@ -87,4 +136,3 @@ async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         return
 
     await hass.config_entries.async_reload(entry.entry_id)
-
