@@ -1,6 +1,6 @@
 name: "Tesla Fleet Gateway"
 description: "Single-host Tesla PEM and Fleet Telemetry gateway"
-version: "0.2.8"
+version: "0.5.0"
 slug: "tesla_fleet_gateway"
 url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
 arch:
