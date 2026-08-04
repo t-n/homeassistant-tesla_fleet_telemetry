@@ -4,7 +4,8 @@ ARG BUILD_ARCH
 ARG FLEET_TELEMETRY_REF=4767414c1297c8db37a082561c2b761ce8613590
 ARG VEHICLE_COMMAND_REF=f97fa1e4bf617a364c72b85cb5d859528abeda67
 
-FROM golang:1.23-alpine AS fleet_telemetry_build
+# fleet-telemetry @ FLEET_TELEMETRY_REF requires go >= 1.26
+FROM golang:1.26-alpine AS fleet_telemetry_build
 # ARG defaults from before FROM are not inherited into stages; re-declare.
 ARG FLEET_TELEMETRY_REF
 
