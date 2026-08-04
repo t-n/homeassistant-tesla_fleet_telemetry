@@ -530,17 +530,41 @@ else
     STREAM_ACCESS_LOG="access_log off;"
 fi
 
+# User-fixable startup failures must not exit non-zero: s6 would restart the
+# service every second and flood the logs. Idle until the operator restarts.
+idle_after_config_error() {
+    local message="$1"
+
+    bashio::log.fatal "${message}"
+    bashio::log.fatal "Add-on is idle until you fix the configuration and restart."
+    exec sleep infinity
+}
+
+fail_next_step() {
+    local problem="$1"
+    local next_step="$2"
+
+    bashio::log.error "⚠️ ACTION REQUIRED"
+    bashio::log.error "⎢ Problem: ${problem}"
+    bashio::log.error "⎣ Next step: ${next_step}"
+    idle_after_config_error "Tesla Fleet Gateway onboarding is incomplete"
+}
+
 case "$TESLA_OAUTH_CALLBACK_PATH" in
     /*)
         ;;
     *)
-        bashio::exit.nok "tesla_oauth.callback_path must start with /"
+        fail_next_step \
+            "tesla_oauth.callback_path must start with /" \
+            "Set tesla_oauth.callback_path to a path such as /tesla/callback"
         ;;
 esac
 
 case "$TESLA_OAUTH_CALLBACK_PATH" in
     *[!A-Za-z0-9_./-]*)
-        bashio::exit.nok "tesla_oauth.callback_path can only contain letters, numbers, slash, dot, underscore, and dash"
+        fail_next_step \
+            "tesla_oauth.callback_path contains invalid characters" \
+            "Use only letters, numbers, slash, dot, underscore, and dash"
         ;;
 esac
 
@@ -552,16 +576,6 @@ TESLA_OAUTH_CALLBACK_LOCATION_BLOCK="        location = ${TESLA_OAUTH_CALLBACK_P
             proxy_set_header X-Forwarded-Proto https;
             proxy_set_header X-Forwarded-For \$remote_addr;
         }"
-
-fail_next_step() {
-    local problem="$1"
-    local next_step="$2"
-
-    bashio::log.error "⚠️ ACTION REQUIRED"
-    bashio::log.error "⎢ Problem: ${problem}"
-    bashio::log.error "⎣ Next step: ${next_step}"
-    bashio::exit.nok "Tesla Fleet Gateway onboarding is incomplete"
-}
 
 warn_next_step() {
     local problem="$1"
