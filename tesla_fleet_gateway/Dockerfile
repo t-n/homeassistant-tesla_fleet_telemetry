@@ -5,6 +5,8 @@ ARG FLEET_TELEMETRY_REF=4767414c1297c8db37a082561c2b761ce8613590
 ARG VEHICLE_COMMAND_REF=f97fa1e4bf617a364c72b85cb5d859528abeda67
 
 FROM golang:1.23-alpine AS fleet_telemetry_build
+# ARG defaults from before FROM are not inherited into stages; re-declare.
+ARG FLEET_TELEMETRY_REF
 
 WORKDIR /build
 
@@ -26,6 +28,7 @@ RUN git clone https://github.com/teslamotors/fleet-telemetry.git . \
     && make
 
 FROM golang:1.23-alpine AS vehicle_command_build
+ARG VEHICLE_COMMAND_REF
 
 WORKDIR /app
 
