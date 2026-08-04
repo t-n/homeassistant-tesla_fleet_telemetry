@@ -7,3 +7,24 @@
 __pycache__/
 *.py[cod]
 *.log
+
+# Local / runtime secrets — never commit
+tesla_fleet.key
+**/tesla_fleet.key
+gateway_handoff.json
+**/gateway_handoff.json
+oauth_tokens.json
+**/oauth_tokens.json
+tesla_oauth_tokens.json
+**/tesla_oauth_tokens.json
+tesla_oauth_state.json
+**/tesla_oauth_state.json
+fleet_telemetry_config.json
+**/fleet_telemetry_config.json
+options.json
+**/options.json
+*.pem
+*.key
+.env
+.tfg-ha.conf
+tfg-ha.conf

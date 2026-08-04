@@ -14,7 +14,3 @@ This repository contains both the Home Assistant add-on (`tesla_fleet_gateway`) 
 
 - Add-on: validate config schema and shell scripts.
 - Integration: validate with `hassfest` and static checks.
-
-## Private ops scripts
-
-Host-specific deploy/debug scripts live in `../ha-devtools/` and are not part of this repository.

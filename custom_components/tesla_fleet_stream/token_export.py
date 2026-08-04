@@ -22,6 +22,7 @@ from .const import (
     GATEWAY_HANDOFF_REEXPORT_INTERVAL_SECONDS,
     GATEWAY_HANDOFF_RELATIVE_PATH,
     OAUTH_TOKEN_EXPORT_RELATIVE_PATH,
+    normalize_fleet_api_base,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,11 +31,18 @@ HANDOFF_VERSION = 1
 
 def _fleet_api_base(entry: ConfigEntry) -> str:
     """Return the configured Fleet API base URL."""
-    return (
+    raw = (
         entry.options.get(CONF_FLEET_API_BASE)
         or entry.data.get(CONF_FLEET_API_BASE)
         or DEFAULT_FLEET_API_BASE
-    ).rstrip("/")
+    )
+    try:
+        return normalize_fleet_api_base(raw)
+    except ValueError:
+        _LOGGER.warning(
+            "Invalid fleet_api_base %s; falling back to %s", raw, DEFAULT_FLEET_API_BASE
+        )
+        return DEFAULT_FLEET_API_BASE
 
 
 def gateway_handoff_path(hass: HomeAssistant) -> str:
@@ -76,9 +84,9 @@ def write_json_file(path: str, data: dict[str, Any]) -> None:
     directory = os.path.dirname(path)
     os.makedirs(directory, exist_ok=True)
     tmp_path = f"{path}.tmp"
-    with open(tmp_path, "w", encoding="utf-8") as handle:
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
         json.dump(data, handle, separators=(",", ":"))
-    os.chmod(tmp_path, 0o600)
     os.replace(tmp_path, path)
     os.chmod(path, 0o600)
 
@@ -162,13 +170,20 @@ async def async_export_gateway_handoff(
     if not isinstance(access_token, str) or not access_token:
         return False
 
+    expires_at = _expires_at(token)
+    if expires_at is None:
+        _LOGGER.warning(
+            "Tesla OAuth token is missing expiry metadata; refusing to export handoff"
+        )
+        return False
+
     handoff_path = gateway_handoff_path(hass)
     try:
         write_gateway_handoff(
             handoff_path,
             access_token=access_token,
             fleet_api_base=fleet_base,
-            expires_at=_expires_at(token),
+            expires_at=expires_at,
         )
     except OSError as err:
         _LOGGER.error(

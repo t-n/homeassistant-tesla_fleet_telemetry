@@ -20,24 +20,31 @@ MY_AUTH_CALLBACK_PATH = "https://my.home-assistant.io/redirect/oauth"
 DEFAULT_FLEET_API_BASE = "https://fleet-api.prd.na.vn.cloud.tesla.com"
 DEFAULT_HANDOFF_FILE = "/homeassistant/tesla_fleet_stream/gateway_handoff.json"
 DEFAULT_HANDOFF_LEEWAY_SECONDS = 120
-DEFAULT_FLEET_TELEMETRY_SHARE_FILE = "/share/tesla/fleet_telemetry_config.json"
+ALLOWED_FLEET_API_HOSTS = frozenset(
+    {
+        "fleet-api.prd.na.vn.cloud.tesla.com",
+        "fleet-api.prd.eu.vn.cloud.tesla.com",
+        "fleet-api.prd.cn.vn.cloud.tesla.cn",
+    }
+)
+# Keep intervals aligned with config.yaml default telemetry_fields.
 DEFAULT_TELEMETRY_FIELDS = {
     "Soc": {"interval_seconds": 60},
     "RatedRange": {"interval_seconds": 60},
     "IdealBatteryRange": {"interval_seconds": 60},
     "ChargeRateMilePerHour": {"interval_seconds": 1},
-    "VehicleSpeed": {"interval_seconds": 60},
-    "Location": {"interval_seconds": 60},
-    "ChargeAmps": {"interval_seconds": 60},
+    "VehicleSpeed": {"interval_seconds": 10},
+    "Location": {"interval_seconds": 10},
+    "ChargeAmps": {"interval_seconds": 1},
     "InsideTemp": {"interval_seconds": 60},
     "OutsideTemp": {"interval_seconds": 60},
-    "DetailedChargeState": {"interval_seconds": 60},
-    "ChargeState": {"interval_seconds": 60},
-    "ACChargingPower": {"interval_seconds": 60},
-    "DCChargingPower": {"interval_seconds": 60},
-    "TimeToFullCharge": {"interval_seconds": 60},
-    "Locked": {"interval_seconds": 60},
-    "DoorState": {"interval_seconds": 60},
+    "DetailedChargeState": {"interval_seconds": 1},
+    "ChargeState": {"interval_seconds": 1},
+    "ACChargingPower": {"interval_seconds": 1},
+    "DCChargingPower": {"interval_seconds": 1},
+    "TimeToFullCharge": {"interval_seconds": 1},
+    "Locked": {"interval_seconds": 1},
+    "DoorState": {"interval_seconds": 1},
     "DriverSeatOccupied": {"interval_seconds": 1, "resend_interval_seconds": 300},
 }
 
@@ -95,10 +102,22 @@ def write_secret_json(path, data):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(f".{target.name}.tmp")
-    with tmp.open("w", encoding="utf-8") as file:
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as file:
         json.dump(data, file, separators=(",", ":"))
-    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
-    tmp.replace(target)
+    os.replace(tmp, target)
+    os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def write_json_file(path, data):
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f".{target.name}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
+        file.write("\n")
+    os.replace(tmp, target)
     os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
 
 
@@ -193,6 +212,38 @@ def load_vin_allowlist(options_file=None):
     return allowlist
 
 
+def apply_vin_allowlist(vins):
+    """Filter VINs by the optional allowlist."""
+    vin_allowlist = load_vin_allowlist()
+    if not vin_allowlist:
+        return list(vins)
+    filtered = [vin for vin in vins if isinstance(vin, str) and vin.upper() in vin_allowlist]
+    if not filtered:
+        raise OAuthError(
+            "VIN allowlist is set but none of the listed VINs were returned by Fleet API"
+        )
+    return filtered
+
+
+def normalize_fleet_api_base(audience):
+    """Return a Tesla Fleet API base URL, rejecting unknown hosts."""
+    if not audience:
+        return DEFAULT_FLEET_API_BASE
+    parsed = urlparse(audience.rstrip("/"))
+    if parsed.scheme != "https" or parsed.hostname not in ALLOWED_FLEET_API_HOSTS:
+        raise OAuthError(
+            f"Unsupported Fleet API base URL: {audience}. "
+            "Use the official NA, EU, or CN Tesla Fleet API host."
+        )
+    if parsed.path not in ("", "/"):
+        raise OAuthError(f"Fleet API base URL must not include a path: {audience}")
+    return f"https://{parsed.hostname}"
+
+
+def fleet_api_base(audience):
+    return normalize_fleet_api_base(audience)
+
+
 @dataclass
 class Settings:
     client_id: str
@@ -246,7 +297,7 @@ class HandoffStore:
 
         expires_at = handoff.get("expires_at")
         if expires_at is None:
-            return True
+            return False
 
         try:
             return time.time() < int(expires_at) - DEFAULT_HANDOFF_LEEWAY_SECONDS
@@ -257,7 +308,10 @@ class HandoffStore:
         handoff = handoff if handoff is not None else self.load()
         base = handoff.get("fleet_api_base")
         if isinstance(base, str) and base:
-            return base.rstrip("/")
+            try:
+                return normalize_fleet_api_base(base)
+            except OAuthError:
+                return None
         return None
 
     def access_token(self):
@@ -283,24 +337,6 @@ class TokenStore:
     def has_refresh_token(self):
         value = self.load().get("refresh_token")
         return isinstance(value, str) and len(value) > 0
-
-
-def fleet_api_base(audience):
-    if audience:
-        return audience.rstrip("/")
-    return DEFAULT_FLEET_API_BASE
-
-
-def write_json_file(path, data):
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(f".{target.name}.tmp")
-    with tmp.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2)
-        file.write("\n")
-    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
-    tmp.replace(target)
-    os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
 
 
 class TeslaOAuthManager:
@@ -824,10 +860,20 @@ def prepare_telemetry_config(settings):
             and hostname == endpoint_host
             and str(port) == str(endpoint_port)
         ):
+            try:
+                vins = apply_vin_allowlist(vins)
+            except OAuthError as error:
+                warn_next_step(
+                    "Fleet Telemetry request file could not be reconciled",
+                    "Update vin_allowlist or delete the request file and restart the add-on",
+                    [str(error)],
+                )
+                return 1
+
             existing_fields = config.get("fields")
             if not isinstance(existing_fields, dict):
                 existing_fields = {}
-            if existing_fields == desired_fields:
+            if existing_fields == desired_fields and existing.get("vins") == vins:
                 log_success(
                     "Fleet Telemetry request file already matches add-on options",
                     f"Using {request_file} with {len(vins)} VIN(s) and "
@@ -835,17 +881,12 @@ def prepare_telemetry_config(settings):
                 )
                 return 0
 
-            # Any option change (intervals, resend, or field set) is written on startup.
+            # Any option change (intervals, resend, field set, or VIN allowlist)
+            # is written on startup.
             config["fields"] = desired_fields
             payload = {"vins": vins, "config": config}
             try:
                 write_json_file(request_file, payload)
-                share_copy = Path(
-                    env("FLEET_TELEMETRY_SHARE_FILE", DEFAULT_FLEET_TELEMETRY_SHARE_FILE)
-                )
-                if share_copy != request_file:
-                    share_copy.parent.mkdir(parents=True, exist_ok=True)
-                    write_json_file(share_copy, payload)
             except OSError as error:
                 warn_next_step(
                     "Fleet Telemetry request file could not be updated",
@@ -855,22 +896,15 @@ def prepare_telemetry_config(settings):
                 return 1
             log_success(
                 "Fleet Telemetry request file reconciled from add-on options",
-                f"Applied {len(desired_fields)} configured field(s) for "
-                f"{endpoint_host}:{endpoint_port}",
+                f"Applied {len(desired_fields)} configured field(s) and "
+                f"{len(vins)} VIN(s) for {endpoint_host}:{endpoint_port}",
             )
             return 0
 
     manager = TeslaOAuthManager(settings)
     try:
         access_token = manager.get_access_token()
-        vins = manager.list_vehicle_vins(access_token)
-        vin_allowlist = load_vin_allowlist()
-        if vin_allowlist:
-            vins = [vin for vin in vins if vin.upper() in vin_allowlist]
-            if not vins:
-                raise OAuthError(
-                    "VIN allowlist is set but none of the listed VINs were returned by Fleet API"
-                )
+        vins = apply_vin_allowlist(manager.list_vehicle_vins(access_token))
         with Path(ca_file).open("r", encoding="utf-8") as file:
             ca = file.read()
         payload = {
@@ -883,12 +917,6 @@ def prepare_telemetry_config(settings):
             },
         }
         write_json_file(request_file, payload)
-        share_copy = Path(
-            env("FLEET_TELEMETRY_SHARE_FILE", DEFAULT_FLEET_TELEMETRY_SHARE_FILE)
-        )
-        if share_copy != request_file:
-            share_copy.parent.mkdir(parents=True, exist_ok=True)
-            write_json_file(share_copy, payload)
 
         if not request_file.is_file():
             raise OSError(f"Fleet Telemetry request file was not persisted at {request_file}")
@@ -921,13 +949,9 @@ def prepare_telemetry_config(settings):
         )
         return 1
 
-    share_copy = Path(env("FLEET_TELEMETRY_SHARE_FILE", DEFAULT_FLEET_TELEMETRY_SHARE_FILE))
     log_success(
         "Fleet Telemetry request file generated",
-        (
-            f"Wrote {len(vins)} VIN(s) for {endpoint_host}:{endpoint_port}; "
-            f"private copy: {request_file}; visible copy: {share_copy}"
-        ),
+        f"Wrote {len(vins)} VIN(s) for {endpoint_host}:{endpoint_port} to {request_file}",
     )
     return 0
 

@@ -45,9 +45,11 @@ from .const import (
     DOOR_FIELD,
     DOOR_SENSORS,
     IGNORED_TELEMETRY_FIELDS,
-    vehicle_connectivity_signal,
+    is_valid_vin,
+    normalize_topic_base,
     new_entity_signal,
     update_signal,
+    vehicle_connectivity_signal,
 )
 from .fleet_api import async_fetch_vehicle_vins
 from .descriptions import (
@@ -82,7 +84,16 @@ class TeslaFleetStreamRuntime:
         self.entry = entry
         config = {**entry.data, **entry.options}
 
-        self.topic_base: str = config.get(CONF_TOPIC_BASE, DEFAULT_TOPIC_BASE).strip("/")
+        try:
+            self.topic_base: str = normalize_topic_base(
+                config.get(CONF_TOPIC_BASE, DEFAULT_TOPIC_BASE)
+            )
+        except ValueError:
+            self.topic_base = DEFAULT_TOPIC_BASE
+            _LOGGER.warning(
+                "Invalid MQTT topic base in config; falling back to %s",
+                DEFAULT_TOPIC_BASE,
+            )
         self.attach_to_existing_device: bool = config.get(
             CONF_ATTACH_TO_EXISTING_DEVICE, DEFAULT_ATTACH_TO_EXISTING_DEVICE
         )
@@ -317,6 +328,9 @@ class TeslaFleetStreamRuntime:
 
         vin, _, raw_field = tail
         vin = vin.upper()
+        if not is_valid_vin(vin):
+            _LOGGER.debug("Ignoring MQTT metric with invalid VIN fragment: %s", vin)
+            return
         payload = decode_payload(msg.payload)
         vehicle = self._vehicles.setdefault(vin, VehicleTelemetryState())
         sample_time = extract_sample_time(payload)
@@ -428,6 +442,11 @@ class TeslaFleetStreamRuntime:
             return
 
         vin = tail[0].upper()
+        if not is_valid_vin(vin):
+            _LOGGER.debug(
+                "Ignoring MQTT connectivity message with invalid VIN fragment: %s", vin
+            )
+            return
         payload = decode_payload(msg.payload)
         value = extract_connectivity(payload)
         sample_time = extract_sample_time(payload)

@@ -11,7 +11,10 @@ This project assumes the official Home Assistant `tesla_fleet` integration is al
 
 ## Known issue (HA 2026.8+)
 
-`tesla_fleet_stream` currently uses a deprecated device-linking pattern (`attach_to_existing_device`) that relied on shared identifiers across config entries. From Home Assistant 2026.8, devices are restricted to one config entry, so this behavior will be replaced in a future release.
+New installs default to a dedicated `tesla_fleet_stream` device per vehicle
+(`attach_to_existing_device=false`). The optional attach-to-`tesla_fleet` mode is
+deprecated under Home Assistant 2026.8's single-config-entry device model and
+will be removed or replaced with entity `device_entry` linking in a future release.
 
 ## Install
 

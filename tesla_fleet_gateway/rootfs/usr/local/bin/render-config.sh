@@ -489,12 +489,6 @@ if [ ! -f "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" ] && [ -f "${HOMEASSISTANT_CONFIG_
     VEHICLE_COMMAND_PRIVATE_KEY_PATH="${HOMEASSISTANT_CONFIG_DIR}/tesla_fleet.key"
 fi
 
-if [ "$TESLA_ENDPOINT_HOST" = "tesla.example.com" ] || [ "$GATEWAY_HOST" = "tesla.example.com" ]; then
-    fail_next_step \
-        "Add-on domain is still the default placeholder (tesla.example.com)" \
-        "Set a real public domain in add-on options before starting telemetry"
-fi
-
 case "$MQTT_BROKER" in
     tcp://*|ssl://*|ws://*|wss://*)
         ;;
@@ -605,46 +599,55 @@ log_success() {
     fi
 }
 
+require_hostname() {
+    local label="$1"
+    local host="$2"
+
+    if ! printf '%s' "$host" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$'; then
+        fail_next_step \
+            "${label} is not a valid hostname: ${host}" \
+            "Use a DNS hostname without spaces, paths, or special characters"
+    fi
+}
+
+if [ "$TESLA_ENDPOINT_HOST" = "tesla.example.com" ] || [ "$GATEWAY_HOST" = "tesla.example.com" ]; then
+    fail_next_step \
+        "Add-on domain is still the default placeholder (tesla.example.com)" \
+        "Set a real public domain in add-on options before starting telemetry"
+fi
+
+require_hostname "Domain" "$GATEWAY_HOST"
+require_hostname "Tesla endpoint host" "$TESLA_ENDPOINT_HOST"
+require_hostname "Telemetry host" "$TESLA_TELEMETRY_PASSTHROUGH_HOST"
+
+case "$EDGE_TLS_CERT" in
+    /ssl/*) ;;
+    *)
+        fail_next_step \
+            "TLS certificate path must be under /ssl/: ${EDGE_TLS_CERT}" \
+            "Set advanced.certfile to a file under /ssl (for example /ssl/fullchain.pem from the Let's Encrypt add-on)"
+        ;;
+esac
+case "$EDGE_TLS_KEY" in
+    /ssl/*) ;;
+    *)
+        fail_next_step \
+            "TLS private key path must be under /ssl/: ${EDGE_TLS_KEY}" \
+            "Set advanced.keyfile to a file under /ssl (for example /ssl/privkey.pem from the Let's Encrypt add-on)"
+        ;;
+esac
+
 sync_legacy_oauth_token_cache() {
     local integration_file="$DEFAULT_TESLA_OAUTH_INTEGRATION_TOKEN_FILE"
-    local writable_file="${ADDON_CONFIG_DIR}/tesla_oauth_tokens.json"
-    local integration_obtained
-    local writable_obtained
 
-    if [ ! -f "$integration_file" ]; then
-        return 0
+    # Do not copy long-lived refresh tokens into addon_config. The supported path
+    # is gateway_handoff.json (access token only) from tesla_fleet_stream.
+    if [ -f "$integration_file" ] \
+        && jq -e '.refresh_token | type == "string" and length > 0' "$integration_file" >/dev/null 2>&1; then
+        warn_next_step \
+            "Deprecated oauth_tokens.json with a refresh token is still present" \
+            "Reload tesla_fleet_stream so it exports gateway_handoff.json and deletes the legacy file; the add-on no longer copies refresh tokens"
     fi
-
-    if ! jq -e '.refresh_token | type == "string" and length > 0' "$integration_file" >/dev/null 2>&1; then
-        return 0
-    fi
-
-    mkdir -p "$ADDON_CONFIG_DIR"
-    integration_obtained="$(jq -r '.obtained_at // 0' "$integration_file")"
-    writable_obtained="0"
-    if [ -f "$writable_file" ]; then
-        writable_obtained="$(jq -r '.obtained_at // 0' "$writable_file")"
-    fi
-
-    if [ ! -f "$writable_file" ] || [ "$integration_obtained" -ge "$writable_obtained" ]; then
-        cp "$integration_file" "$writable_file"
-        chmod 600 "$writable_file"
-        log_success \
-            "Synced legacy Tesla OAuth tokens from tesla_fleet_stream" \
-            "Writable cache: ${writable_file}"
-    fi
-
-    # This is a transitional fallback for installs upgrading from versions that
-    # exported the long-lived refresh token. The add-on cannot remove the file
-    # itself because /homeassistant is mounted read-only; the tesla_fleet_stream
-    # integration (>=0.2.17) deletes oauth_tokens.json on export so the refresh
-    # token is not left in plaintext on /config. The gateway handoff is the only
-    # supported path going forward.
-    bashio::log.warning "⚠️ Using deprecated Tesla OAuth refresh token from ${integration_file}"
-    bashio::log.warning "⎣ Update tesla_fleet_stream to >=0.2.17 and reload it; it removes this file and exports gateway_handoff.json instead"
-
-    TESLA_OAUTH_TOKEN_CACHE_FILE="$writable_file"
-    TESLA_OAUTH_USE_INTEGRATION_TOKEN=true
 }
 
 handoff_access_token_valid() {
@@ -661,7 +664,7 @@ handoff_access_token_valid() {
 
     expires_at="$(jq -r '.expires_at // empty' "$handoff_file")"
     if [ -z "$expires_at" ] || [ "$expires_at" = "null" ]; then
-        return 0
+        return 1
     fi
 
     [ "$expires_at" -gt "$(date +%s)" ]
@@ -675,9 +678,20 @@ resolve_oauth_handoff() {
         TESLA_OAUTH_USE_INTEGRATION_HANDOFF=true
         TESLA_OAUTH_USE_INTEGRATION_TOKEN=true
         handoff_audience="$(jq -r '.fleet_api_base // empty' "$handoff_file")"
-        if [ -n "$handoff_audience" ] && [ "$handoff_audience" != "null" ]; then
-            TESLA_OAUTH_AUDIENCE="$handoff_audience"
-        fi
+        case "$handoff_audience" in
+            https://fleet-api.prd.na.vn.cloud.tesla.com|\
+            https://fleet-api.prd.eu.vn.cloud.tesla.com|\
+            https://fleet-api.prd.cn.vn.cloud.tesla.cn)
+                TESLA_OAUTH_AUDIENCE="$handoff_audience"
+                ;;
+            "")
+                ;;
+            *)
+                warn_next_step \
+                    "gateway_handoff.json has an unsupported fleet_api_base" \
+                    "Set Fleet API base in tesla_fleet_stream options to the official NA, EU, or CN host"
+                ;;
+        esac
         log_success \
             "Tesla OAuth is managed by Home Assistant" \
             "Access token handoff: ${handoff_file}"
@@ -798,29 +812,28 @@ require_file \
     "Install or renew the Home Assistant SSL certificate for this domain"
 log_success "TLS files found" "Certificate: ${EDGE_TLS_CERT}; key: ${EDGE_TLS_KEY}"
 
+# Home Assistant config is mounted read-only, so never try to create
+# /homeassistant/tesla_fleet.key here. Derive the public PEM from the official
+# integration's existing private key (or an operator-provided key) instead.
 if [ ! -f "$PUBLIC_KEY_PATH" ] && [ -f "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" ]; then
     mkdir -p "$(dirname "$PUBLIC_KEY_PATH")"
     if openssl ec -in "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" -pubout -out "$PUBLIC_KEY_PATH" >/dev/null 2>&1; then
+        chmod 600 "$PUBLIC_KEY_PATH" || true
         bashio::log.info "ℹ️ Derived Tesla public key PEM from existing private key"
         bashio::log.info "⎣ Wrote ${PUBLIC_KEY_PATH} from ${VEHICLE_COMMAND_PRIVATE_KEY_PATH}"
     fi
 fi
 
-if [ ! -f "$PUBLIC_KEY_PATH" ] && [ ! -f "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" ]; then
-    mkdir -p "$(dirname "$PUBLIC_KEY_PATH")"
-    if tesla-keygen create >"$VEHICLE_COMMAND_PRIVATE_KEY_PATH" 2>/dev/null \
-        && openssl ec -in "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" -pubout -out "$PUBLIC_KEY_PATH" >/dev/null 2>&1; then
-        chmod 600 "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" "$PUBLIC_KEY_PATH" || true
-        bashio::log.info "ℹ️ Generated new Tesla keypair for first-time setup"
-        bashio::log.info "⎢ Private key: ${VEHICLE_COMMAND_PRIVATE_KEY_PATH}"
-        bashio::log.info "⎣ Public PEM: ${PUBLIC_KEY_PATH}"
-    fi
+if [ ! -f "$VEHICLE_COMMAND_PRIVATE_KEY_PATH" ]; then
+    fail_next_step \
+        "Vehicle command private key not found at ${VEHICLE_COMMAND_PRIVATE_KEY_PATH}" \
+        "Configure the official Tesla Fleet integration first (it creates /config/tesla_fleet.key), or place a matching EC private key there"
 fi
 
 require_file \
     "Tesla public key PEM" \
     "$PUBLIC_KEY_PATH" \
-    "Make sure official Tesla Fleet integration is configured, or generate a keypair and place the public key at ${PUBLIC_KEY_PATH}"
+    "Place the matching public key at ${PUBLIC_KEY_PATH}, or ensure the private key at ${VEHICLE_COMMAND_PRIVATE_KEY_PATH} can be read so the add-on can derive it"
 require_valid_public_key "$PUBLIC_KEY_PATH"
 log_success "Tesla public key PEM is present and valid" "Gateway listener URL: https://${GATEWAY_HOST}:${GATEWAY_TLS_PORT}${EDGE_PEM_PUBLIC_PATH}"
 
@@ -992,7 +1005,59 @@ fi
 
 mkdir -p /etc/fleet-telemetry /etc/nginx
 
-envsubst < /etc/fleet-telemetry/config.template.json > /etc/fleet-telemetry/config.json
+# Build fleet-telemetry config with jq so MQTT credentials are JSON-escaped.
+jq -n \
+    --arg host "$TELEMETRY_BIND_HOST" \
+    --argjson port "$TELEMETRY_BIND_PORT" \
+    --arg log_level "$TELEMETRY_LOG_LEVEL" \
+    --argjson reliable_ack "$TELEMETRY_RELIABLE_ACK" \
+    --argjson transmit_decoded_records "$TELEMETRY_TRANSMIT_DECODED_RECORDS" \
+    --arg delivery_policy "$TELEMETRY_DELIVERY_POLICY" \
+    --arg server_cert "$EDGE_TLS_CERT" \
+    --arg server_key "$EDGE_TLS_KEY" \
+    --arg mqtt_broker "${MQTT_BROKER}:${MQTT_PORT}" \
+    --arg mqtt_client_id "$MQTT_CLIENT_ID" \
+    --arg mqtt_username "$MQTT_USERNAME" \
+    --arg mqtt_password "$MQTT_PASSWORD" \
+    --arg mqtt_topic_base "$MQTT_TOPIC_BASE" \
+    --argjson mqtt_qos "$MQTT_QOS" \
+    --argjson mqtt_retained "$MQTT_RETAINED" \
+    --argjson mqtt_connect_timeout_ms "$MQTT_CONNECT_TIMEOUT_MS" \
+    --argjson mqtt_publish_timeout_ms "$MQTT_PUBLISH_TIMEOUT_MS" \
+    --argjson mqtt_keep_alive_seconds "$MQTT_KEEP_ALIVE_SECONDS" \
+    '{
+      host: $host,
+      port: $port,
+      log_level: $log_level,
+      json_log_enable: true,
+      reliable_ack: $reliable_ack,
+      transmit_decoded_records: $transmit_decoded_records,
+      delivery_policy: $delivery_policy,
+      logger: { verbose: false },
+      records: {
+        alerts: ["logger", "mqtt"],
+        connectivity: ["logger", "mqtt"],
+        errors: ["logger", "mqtt"],
+        V: ["logger", "mqtt"]
+      },
+      tls: {
+        server_cert: $server_cert,
+        server_key: $server_key
+      },
+      mqtt: {
+        broker: $mqtt_broker,
+        client_id: $mqtt_client_id,
+        username: $mqtt_username,
+        password: $mqtt_password,
+        topic_base: $mqtt_topic_base,
+        qos: $mqtt_qos,
+        retained: $mqtt_retained,
+        connect_timeout_ms: $mqtt_connect_timeout_ms,
+        publish_timeout_ms: $mqtt_publish_timeout_ms,
+        keep_alive_seconds: $mqtt_keep_alive_seconds
+      }
+    }' > /etc/fleet-telemetry/config.json
+chmod 600 /etc/fleet-telemetry/config.json
 
 NGINX_LOAD_MODULE=""
 NGINX_STREAM_BLOCK=""
@@ -1110,7 +1175,11 @@ mkdir -p /run
     printf 'TESLA_OAUTH_HANDOFF_FILE=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_HANDOFF_FILE")"
     printf 'TESLA_OAUTH_USE_INTEGRATION_HANDOFF=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_USE_INTEGRATION_HANDOFF")"
     printf 'TESLA_OAUTH_CLIENT_ID=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_CLIENT_ID")"
-    printf 'TESLA_OAUTH_CLIENT_SECRET=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_CLIENT_SECRET")"
+    # Never persist the client secret when using integration handoff. For the
+    # deprecated legacy OAuth path only, pass it through the runtime env file.
+    if [ "$TESLA_OAUTH_USE_INTEGRATION_HANDOFF" != "true" ]; then
+        printf 'TESLA_OAUTH_CLIENT_SECRET=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_CLIENT_SECRET")"
+    fi
     printf 'TESLA_OAUTH_TOKEN_URL=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_TOKEN_URL")"
     printf 'TESLA_OAUTH_AUDIENCE=%s\n' "$(write_runtime_env_value "$TESLA_OAUTH_AUDIENCE")"
     printf 'EDGE_TELEMETRY_MTLS_PASSTHROUGH=%s\n' "$(write_runtime_env_value "$EDGE_TELEMETRY_MTLS_PASSTHROUGH")"

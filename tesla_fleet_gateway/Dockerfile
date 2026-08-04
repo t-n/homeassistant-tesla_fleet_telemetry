@@ -54,7 +54,9 @@ RUN apk add --no-cache \
     py3-pip \
     python3 \
     zeromq \
-    && pip3 install --no-cache-dir --break-system-packages authlib requests
+    && pip3 install --no-cache-dir --break-system-packages \
+        "authlib==1.7.2" \
+        "requests==2.34.2"
 
 COPY --from=fleet_telemetry_build /go/bin/fleet-telemetry /usr/local/bin/fleet-telemetry
 COPY --from=vehicle_command_build /out/tesla-http-proxy /usr/local/bin/tesla-http-proxy

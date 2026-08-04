@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from homeassistant.const import Platform
 
 DOMAIN = "tesla_fleet_stream"
@@ -18,11 +20,22 @@ CONF_ENABLED_PLATFORMS = "enabled_platforms"
 CONF_FLEET_API_BASE = "fleet_api_base"
 CONF_TOPIC_BASE = "topic_base"
 
-DEFAULT_ATTACH_TO_EXISTING_DEVICE = True
+DEFAULT_ATTACH_TO_EXISTING_DEVICE = False
 DEFAULT_DEVICE_DOMAIN = "tesla_fleet"
 DEFAULT_ENABLED_PLATFORMS = ["sensor", "binary_sensor", "device_tracker"]
 DEFAULT_FLEET_API_BASE = "https://fleet-api.prd.na.vn.cloud.tesla.com"
 DEFAULT_TOPIC_BASE = "tesla/telemetry"
+
+ALLOWED_FLEET_API_HOSTS = frozenset(
+    {
+        "fleet-api.prd.na.vn.cloud.tesla.com",
+        "fleet-api.prd.eu.vn.cloud.tesla.com",
+        "fleet-api.prd.cn.vn.cloud.tesla.cn",
+    }
+)
+
+# ISO-3779 VIN charset (no I/O/Q).
+VIN_PATTERN = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
 
 # Ignore brief fleet-telemetry CONNECTED/DISCONNECTED churn before flipping HA
 # availability. CONNECTED still applies immediately.
@@ -85,4 +98,33 @@ def new_entity_signal(platform: str) -> str:
 def update_signal(platform: str, vin: str, key: str) -> str:
     """Return a dispatcher signal for entity state updates."""
     return f"{DOMAIN}_{platform}_{vin}_{key}_update"
+
+
+def is_valid_vin(vin: str) -> bool:
+    """Return True when vin looks like an ISO-3779 VIN."""
+    return bool(VIN_PATTERN.fullmatch(vin.upper()))
+
+
+def normalize_topic_base(topic_base: str) -> str:
+    """Normalize and validate an MQTT topic base."""
+    cleaned = topic_base.strip().strip("/")
+    if not cleaned:
+        raise ValueError("MQTT topic base cannot be empty")
+    if "+" in cleaned or "#" in cleaned:
+        raise ValueError("MQTT topic base cannot contain wildcards (+ or #)")
+    return cleaned
+
+
+def normalize_fleet_api_base(fleet_api_base: str) -> str:
+    """Validate and normalize a Tesla Fleet API base URL."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(fleet_api_base.rstrip("/"))
+    if parsed.scheme != "https" or parsed.hostname not in ALLOWED_FLEET_API_HOSTS:
+        raise ValueError(
+            "Fleet API base must be the official NA, EU, or CN Tesla host"
+        )
+    if parsed.path not in ("", "/"):
+        raise ValueError("Fleet API base must not include a path")
+    return f"https://{parsed.hostname}"
 

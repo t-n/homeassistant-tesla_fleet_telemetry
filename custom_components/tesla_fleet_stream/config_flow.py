@@ -30,6 +30,8 @@ from .const import (
     DEFAULT_FLEET_API_BASE,
     DEFAULT_TOPIC_BASE,
     DOMAIN,
+    normalize_fleet_api_base,
+    normalize_topic_base,
 )
 from .credentials import (
     TESLA_FLEET_DOMAIN,
@@ -136,20 +138,36 @@ class OAuth2FlowHandler(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure MQTT topic and entity options."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            await self.async_set_unique_id(user_input[CONF_TOPIC_BASE])
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title="Tesla Fleet Stream",
-                data={
-                    **(self._oauth_data or {}),
-                    **user_input,
-                },
-            )
+            try:
+                user_input[CONF_TOPIC_BASE] = normalize_topic_base(
+                    user_input[CONF_TOPIC_BASE]
+                )
+            except ValueError:
+                errors[CONF_TOPIC_BASE] = "invalid_topic_base"
+            if CONF_FLEET_API_BASE in user_input and user_input[CONF_FLEET_API_BASE]:
+                try:
+                    user_input[CONF_FLEET_API_BASE] = normalize_fleet_api_base(
+                        user_input[CONF_FLEET_API_BASE]
+                    )
+                except ValueError:
+                    errors[CONF_FLEET_API_BASE] = "invalid_fleet_api_base"
+            if not errors:
+                await self.async_set_unique_id(user_input[CONF_TOPIC_BASE])
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title="Tesla Fleet Stream",
+                    data={
+                        **(self._oauth_data or {}),
+                        **user_input,
+                    },
+                )
 
         return self.async_show_form(
             step_id="mqtt",
             data_schema=_build_schema(),
+            errors=errors,
         )
 
     async def async_step_reauth(
@@ -191,8 +209,23 @@ class TeslaFleetStreamOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage the options flow."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            try:
+                user_input[CONF_TOPIC_BASE] = normalize_topic_base(
+                    user_input[CONF_TOPIC_BASE]
+                )
+            except ValueError:
+                errors[CONF_TOPIC_BASE] = "invalid_topic_base"
+            if CONF_FLEET_API_BASE in user_input and user_input[CONF_FLEET_API_BASE]:
+                try:
+                    user_input[CONF_FLEET_API_BASE] = normalize_fleet_api_base(
+                        user_input[CONF_FLEET_API_BASE]
+                    )
+                except ValueError:
+                    errors[CONF_FLEET_API_BASE] = "invalid_fleet_api_base"
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         defaults = {
             **self._config_entry.data,
@@ -201,6 +234,7 @@ class TeslaFleetStreamOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_build_schema(defaults),
+            errors=errors,
         )
 
 

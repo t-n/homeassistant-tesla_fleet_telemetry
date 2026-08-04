@@ -5,7 +5,6 @@
 
 ADDON_CONFIG_DIR="/addon_config"
 HOMEASSISTANT_CONFIG_DIR="/homeassistant"
-DEFAULT_FLEET_TELEMETRY_SHARE_FILE="/share/tesla/fleet_telemetry_config.json"
 
 DEFAULT_EDGE_PEM_ROOT="/share/tesla"
 DEFAULT_EDGE_PEM_PUBLIC_PATH="/.well-known/appspecific/com.tesla.3p.public-key.pem"
