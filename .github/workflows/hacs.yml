@@ -13,3 +13,5 @@ jobs:
         run: |
           test -f hacs.json
           test -f custom_components/tesla_fleet_stream/manifest.json
+          python3 -c "import json; json.load(open('hacs.json'))"
+          python3 -c "import json; m=json.load(open('custom_components/tesla_fleet_stream/manifest.json')); assert m.get('domain') and m.get('version')"
