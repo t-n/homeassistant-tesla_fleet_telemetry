@@ -12,6 +12,10 @@
       "oauth_unauthorized": "Tesla rejected the authorization. Re-authenticate the integration.",
       "reauth_successful": "Tesla re-authentication succeeded."
     },
+    "error": {
+      "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
+      "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
+    },
     "step": {
       "credentials": {
         "title": "Tesla application credentials",
@@ -41,12 +45,16 @@
           "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
-        },
-        "error": {
-          "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
-          "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
         }
-      },
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
+      "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
+    },
+    "step": {
       "init": {
         "title": "MQTT telemetry settings",
         "data": {
@@ -55,10 +63,6 @@
           "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
-        },
-        "error": {
-          "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
-          "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
         }
       }
     }
