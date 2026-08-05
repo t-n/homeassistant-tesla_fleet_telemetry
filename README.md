@@ -44,3 +44,9 @@ Manual alternative: copy `custom_components/tesla_fleet_stream` into your HA `cu
 - `docs/pem-hosting.md`
 - `docs/troubleshooting.md`
 - `docs/architecture.md`
+
+## Contributing / agents
+
+- `AGENTS.md` — technical guide for developers and coding agents
+- `AI_POLICY.md` — AI / LLM contribution rules
+- `CONTRIBUTING.md` — short contribution summary
