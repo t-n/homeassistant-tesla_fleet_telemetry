@@ -34,7 +34,7 @@ async def async_setup_entry(
         async_add_entities([TeslaFleetStreamTracker(runtime, vin)])
         created.add(entity_key)
 
-    for vin, key in runtime.iter_known_entities("device_tracker"):
+    for vin, key in list(runtime.iter_known_entities("device_tracker")):
         add_tracker(vin, key)
 
     entry.async_on_unload(

@@ -233,8 +233,12 @@ class TeslaFleetStreamRuntime:
         self._sub_state = async_unsubscribe_topics(self.hass, self._sub_state)
 
     def iter_known_entities(self, platform: str) -> Iterable[tuple[str, str]]:
-        """Return already-discovered entity keys for a platform."""
-        return self._known_entities[platform]
+        """Return already-discovered entity keys for a platform.
+
+        Returns a snapshot so platform setup can iterate safely while entity
+        restore / MQTT discovery continues to call ``_ensure_entity``.
+        """
+        return tuple(self._known_entities[platform])
 
     def get_entity_timestamps(self, vin: str, key: str) -> EntityTimestamps | None:
         """Return telemetry timestamps for an entity key."""

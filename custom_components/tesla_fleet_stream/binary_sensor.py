@@ -46,7 +46,7 @@ async def async_setup_entry(
             )
             created.add(entity_key)
 
-    for vin, key in runtime.iter_known_entities("binary_sensor"):
+    for vin, key in list(runtime.iter_known_entities("binary_sensor")):
         add_binary_sensor(vin, key)
 
     entry.async_on_unload(

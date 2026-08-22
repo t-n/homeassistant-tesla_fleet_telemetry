@@ -49,7 +49,7 @@ async def async_setup_entry(
             async_add_entities([TeslaFleetStreamSensor(runtime, vin, description)])
             created.add(entity_key)
 
-    for vin, key in runtime.iter_known_entities("sensor"):
+    for vin, key in list(runtime.iter_known_entities("sensor")):
         add_sensor(vin, key)
 
     entry.async_on_unload(
