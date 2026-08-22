@@ -124,7 +124,6 @@ Stream entities should match official **`tesla_fleet`** naming where an equivale
    On the HA host/container, after translations are built or downloaded, look for:  
    `homeassistant/components/tesla_fleet/translations/<lang>.json`  
    inside the Core package (e.g. under site-packages or the HA Docker image).  
-   Do **not** assume `/config/custom_components/tesla_fleet/translations/` exists — Core `tesla_fleet` is not a custom component.
 4. **This repo:** `descriptions.py` + `translations/*.json` (grep before adding duplicates).
 
 **Rules:**
