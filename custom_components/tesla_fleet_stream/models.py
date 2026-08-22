@@ -16,6 +16,16 @@ class EntityTimestamps:
 
 
 @dataclass
+class DriveConsumptionSession:
+    """Track energy/odometer anchors for the current drive session."""
+
+    active: bool = False
+    start_odometer_miles: float | None = None
+    start_lifetime_energy_kwh: float | None = None
+    start_energy_remaining_kwh: float | None = None
+
+
+@dataclass
 class VehicleTelemetryState:
     """In-memory telemetry state for one VIN."""
 
@@ -24,3 +34,6 @@ class VehicleTelemetryState:
     location: dict[str, Any] | None = None
     connectivity: bool | None = None
     timestamps: dict[str, EntityTimestamps] = field(default_factory=dict)
+    drive_consumption: DriveConsumptionSession = field(
+        default_factory=DriveConsumptionSession
+    )

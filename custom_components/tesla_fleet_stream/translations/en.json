@@ -85,6 +85,30 @@
       },
       "drive_state_speed": {
         "name": "Speed (live)"
+      },
+      "vehicle_state_odometer": {
+        "name": "Odometer (live)"
+      },
+      "energy_remaining": {
+        "name": "Energy remaining (live)"
+      },
+      "pack_voltage": {
+        "name": "Pack voltage (live)"
+      },
+      "pack_current": {
+        "name": "Pack current (live)"
+      },
+      "lifetime_energy_used": {
+        "name": "Lifetime energy used (live)"
+      },
+      "drive_state_power": {
+        "name": "Power (live)"
+      },
+      "drive_state_consumption": {
+        "name": "Consumption (live)"
+      },
+      "drive_state_consumption_average": {
+        "name": "Consumption average (live)"
       }
     }
   }

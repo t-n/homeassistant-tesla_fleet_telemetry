@@ -46,6 +46,13 @@ DEFAULT_TELEMETRY_FIELDS = {
     "IdealBatteryRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
     "ChargeRateMilePerHour": {"interval_seconds": 1},
     "RatedRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    # Keep PackVoltage / PackCurrent / VehicleSpeed on the same interval so
+    # derived live Wh/km is not computed from mismatched samples.
+    "EnergyRemaining": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "Odometer": {"interval_seconds": 10},
+    "PackVoltage": {"interval_seconds": 10},
+    "PackCurrent": {"interval_seconds": 10},
+    "LifetimeEnergyUsed": {"interval_seconds": 10, "resend_interval_seconds": 300},
 }
 
 

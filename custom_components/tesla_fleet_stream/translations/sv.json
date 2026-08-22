@@ -85,6 +85,30 @@
       },
       "drive_state_speed": {
         "name": "Hastighet (live)"
+      },
+      "vehicle_state_odometer": {
+        "name": "Mätarställning (live)"
+      },
+      "energy_remaining": {
+        "name": "Återstående energi (live)"
+      },
+      "pack_voltage": {
+        "name": "Batteripaketets spänning (live)"
+      },
+      "pack_current": {
+        "name": "Batteripaketets ström (live)"
+      },
+      "lifetime_energy_used": {
+        "name": "Förbrukad energi totalt (live)"
+      },
+      "drive_state_power": {
+        "name": "Effekt (live)"
+      },
+      "drive_state_consumption": {
+        "name": "Förbrukning (live)"
+      },
+      "drive_state_consumption_average": {
+        "name": "Förbrukning medel (live)"
       }
     }
   }

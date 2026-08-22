@@ -112,15 +112,25 @@ Stream entities should match official **`tesla_fleet`** naming where an equivale
 
 **Sources (in order):**
 
-1. Running HA entity registry for official `tesla_fleet` entities (best for localized names).
-2. Core English source: [`tesla_fleet/strings.json`](https://github.com/home-assistant/core/blob/dev/homeassistant/components/tesla_fleet/strings.json).
-3. Installed `tesla_fleet/translations/<lang>.json` on the HA host for non-English.
-4. This repo: `descriptions.py` + `translations/*.json` (grep before adding duplicates).
+1. **Running HA entity registry** for official `tesla_fleet` entities (best for localized names).  
+   Use the HA language under **Settings → System → General** (entity `original_name` follows that language).  
+   Via MCP: `ha_get_entity` / `ha_search` and read `original_name` (e.g. `Mätarställning`, `Effekt`).
+2. **English source of truth in Core:**  
+   [`tesla_fleet/strings.json`](https://github.com/home-assistant/core/blob/dev/homeassistant/components/tesla_fleet/strings.json)  
+   (`entity.sensor.<translation_key>.name`, etc.).
+3. **Localized Core strings on a built Home Assistant install** (not in the public git tree):  
+   Core gitignores `homeassistant/components/*/translations/`, so  
+   `…/tesla_fleet/translations/sv.json` is **not** available from GitHub raw/clone.  
+   On the HA host/container, after translations are built or downloaded, look for:  
+   `homeassistant/components/tesla_fleet/translations/<lang>.json`  
+   inside the Core package (e.g. under site-packages or the HA Docker image).  
+   Do **not** assume `/config/custom_components/tesla_fleet/translations/` exists — Core `tesla_fleet` is not a custom component.
+4. **This repo:** `descriptions.py` + `translations/*.json` (grep before adding duplicates).
 
 **Rules:**
 
 - Translation JSON paths use the **stream** platform (`entity.sensor.…`, `entity.binary_sensor.…`), not the official platform.
-- Never guess Swedish from English; copy from registry or official `sv.json`.
+- Never guess Swedish from English; copy from registry `original_name` or a real Core `translations/<lang>.json` on an install.
 - Every key in `en.json` must exist in `sv.json` (and vice versa).
 - Do not rename existing entities to diverge from `tesla_fleet` without a deliberate breaking-change reason.
 

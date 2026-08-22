@@ -58,6 +58,21 @@ CHARGING_POWER_RAW_FIELDS = frozenset({"ACChargingPower", "DCChargingPower"})
 IGNORED_TELEMETRY_FIELDS = frozenset({"ChargeState"})
 COMBINED_CHARGER_POWER_KEY = "charger_power"
 
+# Pack electricals → derived live power / Wh/km. LifetimeEnergyUsedDrive is
+# Semi-only and intentionally unsupported.
+CONSUMPTION_INPUT_RAW_FIELDS = frozenset(
+    {"PackVoltage", "PackCurrent", "VehicleSpeed", "Odometer", "EnergyRemaining", "LifetimeEnergyUsed"}
+)
+DERIVED_PACK_POWER_KEY = "power"
+DERIVED_CONSUMPTION_KEY = "consumption"
+DERIVED_CONSUMPTION_AVERAGE_KEY = "consumption_average"
+# VehicleSpeed is stored in native mph; ignore crawl/noise below this.
+CONSUMPTION_MIN_SPEED_MPH = 3.0
+MPH_TO_KMH = 1.609344
+# Minimum drive-session deltas before publishing an average (reduces startup noise).
+CONSUMPTION_AVERAGE_MIN_DISTANCE_MILES = 0.2
+CONSUMPTION_AVERAGE_MIN_ENERGY_KWH = 0.05
+
 # DoorState is a single Tesla telemetry field whose value is a composite Doors
 # message (6 booleans). It is fanned out into one binary sensor per door. Maps
 # the proto Doors field name to the entity key/translation key. Cabin door keys

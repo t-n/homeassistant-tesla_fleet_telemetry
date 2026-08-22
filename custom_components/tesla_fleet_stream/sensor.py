@@ -11,6 +11,8 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.dt import parse_datetime
 from homeassistant.util.unit_conversion import (
     DistanceConverter,
+    EnergyConverter,
+    EnergyDistanceConverter,
     SpeedConverter,
     TemperatureConverter,
 )
@@ -146,6 +148,15 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
         self._runtime.restore_sensor_value(self._vin, self._key, value)
         if self._key in ("ac_charging_power", "dc_charging_power"):
             self._runtime.recompute_combined_charger_power(self._vin)
+        if self._key in (
+            "pack_voltage",
+            "pack_current",
+            "vehicle_speed",
+            "odometer",
+            "energy_remaining",
+            "lifetime_energy_used",
+        ):
+            self._runtime.recompute_derived_drive_sensors(self._vin)
 
     @staticmethod
     def _convert_display_value_to_native(
@@ -159,6 +170,9 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
             SensorDeviceClass.DISTANCE: DistanceConverter,
             SensorDeviceClass.SPEED: SpeedConverter,
             SensorDeviceClass.TEMPERATURE: TemperatureConverter,
+            SensorDeviceClass.ENERGY: EnergyConverter,
+            SensorDeviceClass.ENERGY_STORAGE: EnergyConverter,
+            SensorDeviceClass.ENERGY_DISTANCE: EnergyDistanceConverter,
         }
         converter = converter_by_class.get(device_class)
         if converter is None:

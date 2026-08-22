@@ -14,6 +14,9 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfElectricCurrent,
+    UnitOfElectricPotential,
+    UnitOfEnergy,
+    UnitOfEnergyDistance,
     UnitOfLength,
     UnitOfPower,
     UnitOfSpeed,
@@ -150,6 +153,53 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    "EnergyRemaining": TeslaFleetStreamSensorDescription(
+        key="energy_remaining",
+        raw_field="EnergyRemaining",
+        translation_key="energy_remaining",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    "Odometer": TeslaFleetStreamSensorDescription(
+        key="odometer",
+        raw_field="Odometer",
+        translation_key="vehicle_state_odometer",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=1,
+    ),
+    "PackVoltage": TeslaFleetStreamSensorDescription(
+        key="pack_voltage",
+        raw_field="PackVoltage",
+        translation_key="pack_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "PackCurrent": TeslaFleetStreamSensorDescription(
+        key="pack_current",
+        raw_field="PackCurrent",
+        translation_key="pack_current",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "LifetimeEnergyUsed": TeslaFleetStreamSensorDescription(
+        key="lifetime_energy_used",
+        raw_field="LifetimeEnergyUsed",
+        translation_key="lifetime_energy_used",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+    ),
 }
 
 COMBINED_CHARGER_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
@@ -162,11 +212,54 @@ COMBINED_CHARGER_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
     suggested_display_precision=1,
 )
 
+# Derived from PackVoltage × PackCurrent (kW). Sign matches Fleet Telemetry /
+# REST drive_state.power: negative while discharging.
+DERIVED_PACK_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
+    key="power",
+    raw_field="",
+    translation_key="drive_state_power",
+    native_unit_of_measurement=UnitOfPower.KILO_WATT,
+    device_class=SensorDeviceClass.POWER,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=2,
+)
+
+# Instant Wh/km from pack power ÷ speed while moving.
+DERIVED_CONSUMPTION_DESCRIPTION = TeslaFleetStreamSensorDescription(
+    key="consumption",
+    raw_field="",
+    translation_key="drive_state_consumption",
+    native_unit_of_measurement=UnitOfEnergyDistance.WATT_HOUR_PER_KM,
+    device_class=SensorDeviceClass.ENERGY_DISTANCE,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+)
+
+# Drive-session average Wh/km from Δenergy / Δodometer while moving.
+DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION = TeslaFleetStreamSensorDescription(
+    key="consumption_average",
+    raw_field="",
+    translation_key="drive_state_consumption_average",
+    native_unit_of_measurement=UnitOfEnergyDistance.WATT_HOUR_PER_KM,
+    device_class=SensorDeviceClass.ENERGY_DISTANCE,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+)
+
 SENSOR_DESCRIPTIONS_BY_KEY: dict[str, TeslaFleetStreamSensorDescription] = {
     description.key: description for description in SENSOR_DESCRIPTIONS.values()
 }
 SENSOR_DESCRIPTIONS_BY_KEY[COMBINED_CHARGER_POWER_DESCRIPTION.key] = (
     COMBINED_CHARGER_POWER_DESCRIPTION
+)
+SENSOR_DESCRIPTIONS_BY_KEY[DERIVED_PACK_POWER_DESCRIPTION.key] = (
+    DERIVED_PACK_POWER_DESCRIPTION
+)
+SENSOR_DESCRIPTIONS_BY_KEY[DERIVED_CONSUMPTION_DESCRIPTION.key] = (
+    DERIVED_CONSUMPTION_DESCRIPTION
+)
+SENSOR_DESCRIPTIONS_BY_KEY[DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION.key] = (
+    DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION
 )
 
 

@@ -38,14 +38,22 @@ from .const import (
     CONF_FLEET_API_BASE,
     CONF_TOPIC_BASE,
     CONNECTIVITY_DISCONNECT_DEBOUNCE_SECONDS,
+    CONSUMPTION_AVERAGE_MIN_DISTANCE_MILES,
+    CONSUMPTION_AVERAGE_MIN_ENERGY_KWH,
+    CONSUMPTION_INPUT_RAW_FIELDS,
+    CONSUMPTION_MIN_SPEED_MPH,
     DEFAULT_ATTACH_TO_EXISTING_DEVICE,
     DEFAULT_DEVICE_DOMAIN,
     DEFAULT_ENABLED_PLATFORMS,
     DEFAULT_FLEET_API_BASE,
     DEFAULT_TOPIC_BASE,
+    DERIVED_CONSUMPTION_AVERAGE_KEY,
+    DERIVED_CONSUMPTION_KEY,
+    DERIVED_PACK_POWER_KEY,
     DOOR_FIELD,
     DOOR_SENSORS,
     IGNORED_TELEMETRY_FIELDS,
+    MPH_TO_KMH,
     is_valid_vin,
     normalize_topic_base,
     new_entity_signal,
@@ -384,6 +392,8 @@ class TeslaFleetStreamRuntime:
             )
             if raw_field in CHARGING_POWER_RAW_FIELDS:
                 self._update_combined_charger_power(vin)
+            if raw_field in CONSUMPTION_INPUT_RAW_FIELDS:
+                self._update_derived_drive_sensors(vin)
             return
 
         if raw_field == DOOR_FIELD:
@@ -567,6 +577,11 @@ class TeslaFleetStreamRuntime:
         self._update_combined_charger_power(vin)
 
     @callback
+    def recompute_derived_drive_sensors(self, vin: str) -> None:
+        """Recompute pack power / consumption after restoring inputs."""
+        self._update_derived_drive_sensors(vin)
+
+    @callback
     def _update_combined_charger_power(self, vin: str) -> None:
         """Publish the active AC or DC charging power as a single sensor."""
         vehicle = self._vehicles.get(vin)
@@ -590,6 +605,157 @@ class TeslaFleetStreamRuntime:
         async_dispatcher_send(
             self.hass,
             update_signal("sensor", vin, COMBINED_CHARGER_POWER_KEY),
+        )
+
+    @callback
+    def _update_derived_drive_sensors(self, vin: str) -> None:
+        """Update pack power and consumption when their inputs change."""
+        self._update_pack_power(vin)
+        self._update_instant_consumption(vin)
+        self._update_consumption_average(vin)
+
+    @callback
+    def _update_pack_power(self, vin: str) -> None:
+        """Derive live pack power once PackVoltage and PackCurrent exist."""
+        vehicle = self._vehicles.get(vin)
+        if vehicle is None:
+            return
+
+        voltage = vehicle.sensors.get("pack_voltage")
+        current = vehicle.sensors.get("pack_current")
+        if not isinstance(voltage, (int, float)) or not isinstance(
+            current, (int, float)
+        ):
+            return
+
+        power_kw = _pack_power_kw(voltage, current)
+        previous = vehicle.sensors.get(DERIVED_PACK_POWER_KEY)
+        vehicle.sensors[DERIVED_PACK_POWER_KEY] = power_kw
+        self._record_entity_update(
+            vehicle,
+            DERIVED_PACK_POWER_KEY,
+            power_kw,
+            previous,
+            None,
+        )
+        self._ensure_entity("sensor", vin, DERIVED_PACK_POWER_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("sensor", vin, DERIVED_PACK_POWER_KEY),
+        )
+
+    @callback
+    def _update_instant_consumption(self, vin: str) -> None:
+        """Derive live Wh/km while moving; clear when stopped."""
+        vehicle = self._vehicles.get(vin)
+        if vehicle is None:
+            return
+
+        power_kw = vehicle.sensors.get(DERIVED_PACK_POWER_KEY)
+        speed_mph = vehicle.sensors.get("vehicle_speed")
+        if not isinstance(power_kw, (int, float)) or not isinstance(
+            speed_mph, (int, float)
+        ):
+            return
+
+        value = _instant_consumption_wh_per_km(power_kw, speed_mph)
+        previous = vehicle.sensors.get(DERIVED_CONSUMPTION_KEY)
+        # Create the entity only after the first successful sample.
+        if value is None and previous is None:
+            return
+
+        vehicle.sensors[DERIVED_CONSUMPTION_KEY] = value
+        self._record_entity_update(
+            vehicle,
+            DERIVED_CONSUMPTION_KEY,
+            value,
+            previous,
+            None,
+        )
+        self._ensure_entity("sensor", vin, DERIVED_CONSUMPTION_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("sensor", vin, DERIVED_CONSUMPTION_KEY),
+        )
+
+    @callback
+    def _update_consumption_average(self, vin: str) -> None:
+        """Derive drive-session average Wh/km from energy and odometer."""
+        vehicle = self._vehicles.get(vin)
+        if vehicle is None:
+            return
+
+        speed_mph = vehicle.sensors.get("vehicle_speed")
+        odometer = vehicle.sensors.get("odometer")
+        lifetime = vehicle.sensors.get("lifetime_energy_used")
+        remaining = vehicle.sensors.get("energy_remaining")
+        moving = isinstance(speed_mph, (int, float)) and speed_mph >= CONSUMPTION_MIN_SPEED_MPH
+        session = vehicle.drive_consumption
+
+        if not moving:
+            session.active = False
+            session.start_odometer_miles = None
+            session.start_lifetime_energy_kwh = None
+            session.start_energy_remaining_kwh = None
+            return
+
+        if not isinstance(odometer, (int, float)):
+            return
+        has_lifetime = isinstance(lifetime, (int, float))
+        has_remaining = isinstance(remaining, (int, float))
+        if not has_lifetime and not has_remaining:
+            return
+
+        if not session.active:
+            session.active = True
+            session.start_odometer_miles = float(odometer)
+            session.start_lifetime_energy_kwh = (
+                float(lifetime) if has_lifetime else None
+            )
+            session.start_energy_remaining_kwh = (
+                float(remaining) if has_remaining else None
+            )
+            return
+
+        if session.start_odometer_miles is None:
+            return
+
+        distance_miles = float(odometer) - session.start_odometer_miles
+        energy_kwh: float | None = None
+        if (
+            has_lifetime
+            and session.start_lifetime_energy_kwh is not None
+        ):
+            energy_kwh = float(lifetime) - session.start_lifetime_energy_kwh
+        elif (
+            has_remaining
+            and session.start_energy_remaining_kwh is not None
+        ):
+            # Energy remaining falls while driving (and rises while charging).
+            energy_kwh = session.start_energy_remaining_kwh - float(remaining)
+
+        if energy_kwh is None:
+            return
+        if (
+            distance_miles < CONSUMPTION_AVERAGE_MIN_DISTANCE_MILES
+            or energy_kwh < CONSUMPTION_AVERAGE_MIN_ENERGY_KWH
+        ):
+            return
+
+        value = (energy_kwh * 1000.0) / (distance_miles * MPH_TO_KMH)
+        previous = vehicle.sensors.get(DERIVED_CONSUMPTION_AVERAGE_KEY)
+        vehicle.sensors[DERIVED_CONSUMPTION_AVERAGE_KEY] = value
+        self._record_entity_update(
+            vehicle,
+            DERIVED_CONSUMPTION_AVERAGE_KEY,
+            value,
+            previous,
+            None,
+        )
+        self._ensure_entity("sensor", vin, DERIVED_CONSUMPTION_AVERAGE_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("sensor", vin, DERIVED_CONSUMPTION_AVERAGE_KEY),
         )
 
     def _ensure_entity(self, platform: str, vin: str, key: str) -> None:
@@ -660,3 +826,19 @@ def _combine_charging_power(ac: Any, dc: Any) -> float | None:
     if ac_kw is not None or dc_kw is not None:
         return float(max(ac_kw or 0, dc_kw or 0))
     return None
+
+
+def _pack_power_kw(voltage: float, current: float) -> float:
+    """Return HV pack power in kW (negative while discharging)."""
+    return float(voltage) * float(current) / 1000.0
+
+
+def _instant_consumption_wh_per_km(
+    power_kw: float, speed_mph: float
+) -> float | None:
+    """Return instantaneous Wh/km while moving; None when below speed floor."""
+    if speed_mph < CONSUMPTION_MIN_SPEED_MPH:
+        return None
+    speed_kmh = float(speed_mph) * MPH_TO_KMH
+    # Negative pack power = discharge → positive Wh/km.
+    return (-float(power_kw) * 1000.0) / speed_kmh
