@@ -14,12 +14,16 @@
     },
     "error": {
       "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
-      "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
+      "invalid_region": "Choose eu, na, or cn to match your Tesla developer app region."
     },
     "step": {
       "credentials": {
         "title": "Tesla application credentials",
-        "description": "Enter the Client ID and Client Secret from your Tesla developer application. Use redirect URI `{redirect_url}` in the Tesla developer portal."
+        "description": "Enter the Client ID and Client Secret from your Tesla developer application. Use redirect URI `{redirect_url}` in the Tesla developer portal.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        }
       },
       "reuse_tesla_fleet": {
         "title": "Reuse Tesla Fleet credentials",
@@ -38,13 +42,16 @@
       },
       "mqtt": {
         "title": "MQTT telemetry settings",
-        "description": "Match the MQTT topic base with the Tesla Fleet Gateway add-on.",
+        "description": "Match the MQTT topic base with the Tesla Fleet Gateway add-on. Region is shared with the gateway via handoff — there is no separate add-on region setting.",
         "data": {
           "topic_base": "MQTT topic base",
-          "fleet_api_base": "Fleet API base URL",
+          "region": "Fleet API region",
           "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
+        },
+        "data_description": {
+          "region": "Must match your Tesla developer app / account region (eu, na, or cn). The gateway add-on uses this value from the handoff file."
         }
       }
     }
@@ -52,17 +59,21 @@
   "options": {
     "error": {
       "invalid_topic_base": "Topic base cannot be empty or contain MQTT wildcards (+ or #).",
-      "invalid_fleet_api_base": "Use the official NA, EU, or CN Tesla Fleet API HTTPS host."
+      "invalid_region": "Choose eu, na, or cn to match your Tesla developer app region."
     },
     "step": {
       "init": {
         "title": "MQTT telemetry settings",
+        "description": "Region is shared with the Tesla Fleet Gateway add-on via handoff. Changing it updates both.",
         "data": {
           "topic_base": "MQTT topic base",
-          "fleet_api_base": "Fleet API base URL",
+          "region": "Fleet API region",
           "attach_to_existing_device": "Attach entities to existing Tesla Fleet devices",
           "device_domain": "Device domain to attach to",
           "enabled_platforms": "Enabled platforms"
+        },
+        "data_description": {
+          "region": "Must match your Tesla developer app / account region (eu, na, or cn)."
         }
       }
     }

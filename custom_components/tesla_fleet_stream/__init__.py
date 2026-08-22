@@ -15,9 +15,12 @@ from .const import (
     CONF_DEVICE_DOMAIN,
     CONF_ENABLED_PLATFORMS,
     CONF_FLEET_API_BASE,
+    CONF_REGION,
     CONF_TOPIC_BASE,
     DEFAULT_DEVICE_DOMAIN,
     PLATFORMS,
+    fleet_api_base_for_region,
+    resolve_entry_region,
 )
 from .coordinator import TeslaFleetStreamRuntime
 from .token_export import (
@@ -31,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 # entry.data["token"] and must NOT reload — that marks every entity unavailable.
 _RELOAD_SETTING_KEYS = (
     CONF_TOPIC_BASE,
+    CONF_REGION,
     CONF_FLEET_API_BASE,
     CONF_ATTACH_TO_EXISTING_DEVICE,
     CONF_DEVICE_DOMAIN,
@@ -80,7 +84,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Migrate config entry to HA 2026.8 device_entry linking."""
+    """Migrate config entry versions."""
     if entry.version < 2:
         _LOGGER.debug(
             "Migrating tesla_fleet_stream from version %s to 2 (device_entry linking)",
@@ -122,8 +126,32 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.config_entries.async_update_entry(entry, version=2)
 
-    return True
+    if entry.version < 3:
+        _LOGGER.debug(
+            "Migrating tesla_fleet_stream from version %s to 3 (shared Fleet API region)",
+            entry.version,
+        )
+        region = resolve_entry_region(entry.data, entry.options)
+        new_data = dict(entry.data)
+        new_options = dict(entry.options)
+        if region is not None:
+            base = fleet_api_base_for_region(region)
+            new_data[CONF_REGION] = region
+            new_data[CONF_FLEET_API_BASE] = base
+            new_options[CONF_REGION] = region
+            new_options[CONF_FLEET_API_BASE] = base
+        else:
+            # Do not invent NA/EU. User must set Region in options; until then
+            # handoff export refuses to write a Fleet API base.
+            _LOGGER.warning(
+                "tesla_fleet_stream has no Fleet API region; "
+                "configure Region (eu/na/cn) in the integration options"
+            )
+        hass.config_entries.async_update_entry(
+            entry, data=new_data, options=new_options, version=3
+        )
 
+    return True
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload when options change; ignore OAuth token-only data updates."""

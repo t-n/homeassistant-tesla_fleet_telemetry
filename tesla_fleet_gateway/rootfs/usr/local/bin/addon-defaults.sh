@@ -42,6 +42,9 @@ DEFAULT_TESLA_FLEET_API_AUDIENCE_NA="https://fleet-api.prd.na.vn.cloud.tesla.com
 DEFAULT_TESLA_FLEET_API_AUDIENCE_CN="https://fleet-api.prd.cn.vn.cloud.tesla.cn"
 DEFAULT_TESLA_ENDPOINT_HTTPS_PORT="443"
 DEFAULT_MQTT_PORT="1883"
+# host_network: Supervisor discovery often returns core-mosquitto, which does not
+# resolve on the host network. Prefer loopback when mqtt.broker is left blank.
+DEFAULT_MQTT_BROKER="127.0.0.1"
 
 DEFAULT_VEHICLE_COMMAND_BIND_HOST="127.0.0.1"
 DEFAULT_VEHICLE_COMMAND_BIND_PORT="4443"

@@ -17,32 +17,28 @@ from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
-    CONF_FLEET_API_BASE,
-    DEFAULT_FLEET_API_BASE,
     GATEWAY_HANDOFF_REEXPORT_INTERVAL_SECONDS,
     GATEWAY_HANDOFF_RELATIVE_PATH,
     OAUTH_TOKEN_EXPORT_RELATIVE_PATH,
-    normalize_fleet_api_base,
+    fleet_api_base_for_region,
+    resolve_entry_region,
 )
 
 _LOGGER = logging.getLogger(__name__)
 HANDOFF_VERSION = 1
 
 
-def _fleet_api_base(entry: ConfigEntry) -> str:
-    """Return the configured Fleet API base URL."""
-    raw = (
-        entry.options.get(CONF_FLEET_API_BASE)
-        or entry.data.get(CONF_FLEET_API_BASE)
-        or DEFAULT_FLEET_API_BASE
-    )
-    try:
-        return normalize_fleet_api_base(raw)
-    except ValueError:
-        _LOGGER.warning(
-            "Invalid fleet_api_base %s; falling back to %s", raw, DEFAULT_FLEET_API_BASE
-        )
-        return DEFAULT_FLEET_API_BASE
+def _fleet_region(entry: ConfigEntry) -> str | None:
+    """Return the configured Fleet API region, or None if unset."""
+    return resolve_entry_region(entry.data, entry.options)
+
+
+def _fleet_api_base(entry: ConfigEntry) -> str | None:
+    """Return the Fleet API base derived from region, or None if unset."""
+    region = _fleet_region(entry)
+    if region is None:
+        return None
+    return fleet_api_base_for_region(region)
 
 
 def gateway_handoff_path(hass: HomeAssistant) -> str:
@@ -95,6 +91,7 @@ def write_gateway_handoff(
     path: str,
     *,
     access_token: str,
+    region: str,
     fleet_api_base: str,
     expires_at: int | None,
 ) -> None:
@@ -103,11 +100,37 @@ def write_gateway_handoff(
     handoff = {
         "version": HANDOFF_VERSION,
         "access_token": access_token,
+        "region": region,
         "fleet_api_base": fleet_api_base,
         "exported_at": now,
         "expires_at": expires_at,
     }
     write_json_file(path, handoff)
+
+
+def _clear_handoff_fleet_api(hass: HomeAssistant) -> None:
+    """Remove region/fleet_api_base from handoff so a stale NA/EU value cannot linger."""
+    path = gateway_handoff_path(hass)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            handoff = json.load(handle)
+    except FileNotFoundError:
+        return
+    except (OSError, json.JSONDecodeError) as err:
+        _LOGGER.warning("Failed to read gateway handoff for region clear: %s", err)
+        return
+
+    if not isinstance(handoff, dict):
+        return
+    if "region" not in handoff and "fleet_api_base" not in handoff:
+        return
+
+    handoff.pop("region", None)
+    handoff.pop("fleet_api_base", None)
+    try:
+        write_json_file(path, handoff)
+    except OSError as err:
+        _LOGGER.warning("Failed to clear Fleet API region from gateway handoff: %s", err)
 
 
 def _remove_legacy_export(hass: HomeAssistant) -> None:
@@ -130,7 +153,17 @@ async def async_export_gateway_handoff(
     if not isinstance(entry.data.get("token"), dict):
         return False
 
+    region = _fleet_region(entry)
     fleet_base = _fleet_api_base(entry)
+    if region is None or fleet_base is None:
+        _LOGGER.warning(
+            "Tesla Fleet API region is not configured; "
+            "set Region in tesla_fleet_stream options before the gateway can use OAuth"
+        )
+        # Drop a stale fleet_api_base from a previous export so the add-on cannot
+        # keep using a wrong continent while region is unset.
+        _clear_handoff_fleet_api(hass)
+        return False
 
     try:
         implementation = (
@@ -182,6 +215,7 @@ async def async_export_gateway_handoff(
         write_gateway_handoff(
             handoff_path,
             access_token=access_token,
+            region=region,
             fleet_api_base=fleet_base,
             expires_at=expires_at,
         )

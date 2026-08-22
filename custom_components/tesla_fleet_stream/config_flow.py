@@ -23,15 +23,18 @@ from .const import (
     CONF_DEVICE_DOMAIN,
     CONF_ENABLED_PLATFORMS,
     CONF_FLEET_API_BASE,
+    CONF_REGION,
     CONF_TOPIC_BASE,
     DEFAULT_ATTACH_TO_EXISTING_DEVICE,
     DEFAULT_DEVICE_DOMAIN,
     DEFAULT_ENABLED_PLATFORMS,
-    DEFAULT_FLEET_API_BASE,
     DEFAULT_TOPIC_BASE,
     DOMAIN,
-    normalize_fleet_api_base,
+    FLEET_API_REGIONS,
+    fleet_api_base_for_region,
+    normalize_region,
     normalize_topic_base,
+    resolve_entry_region,
 )
 from .credentials import (
     TESLA_FLEET_DOMAIN,
@@ -43,13 +46,22 @@ from .credentials import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _region_settings(user_input: dict[str, Any]) -> dict[str, str]:
+    """Normalize region and derive the matching Fleet API base."""
+    region = normalize_region(user_input[CONF_REGION])
+    return {
+        CONF_REGION: region,
+        CONF_FLEET_API_BASE: fleet_api_base_for_region(region),
+    }
+
+
 class OAuth2FlowHandler(
     config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=DOMAIN
 ):
     """Handle Tesla OAuth, credentials, and MQTT settings."""
 
     DOMAIN = DOMAIN
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the flow handler."""
@@ -147,13 +159,10 @@ class OAuth2FlowHandler(
                 )
             except ValueError:
                 errors[CONF_TOPIC_BASE] = "invalid_topic_base"
-            if CONF_FLEET_API_BASE in user_input and user_input[CONF_FLEET_API_BASE]:
-                try:
-                    user_input[CONF_FLEET_API_BASE] = normalize_fleet_api_base(
-                        user_input[CONF_FLEET_API_BASE]
-                    )
-                except ValueError:
-                    errors[CONF_FLEET_API_BASE] = "invalid_fleet_api_base"
+            try:
+                user_input.update(_region_settings(user_input))
+            except (KeyError, ValueError):
+                errors[CONF_REGION] = "invalid_region"
             if not errors:
                 await self.async_set_unique_id(user_input[CONF_TOPIC_BASE])
                 self._abort_if_unique_id_configured()
@@ -218,14 +227,16 @@ class TeslaFleetStreamOptionsFlow(OptionsFlow):
                 )
             except ValueError:
                 errors[CONF_TOPIC_BASE] = "invalid_topic_base"
-            if CONF_FLEET_API_BASE in user_input and user_input[CONF_FLEET_API_BASE]:
-                try:
-                    user_input[CONF_FLEET_API_BASE] = normalize_fleet_api_base(
-                        user_input[CONF_FLEET_API_BASE]
-                    )
-                except ValueError:
-                    errors[CONF_FLEET_API_BASE] = "invalid_fleet_api_base"
+            try:
+                user_input.update(_region_settings(user_input))
+            except (KeyError, ValueError):
+                errors[CONF_REGION] = "invalid_region"
             if not errors:
+                # Keep data and options aligned so handoff and API calls cannot diverge.
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={**self._config_entry.data, **_region_settings(user_input)},
+                )
                 return self.async_create_entry(title="", data=user_input)
 
         defaults = {
@@ -243,17 +254,24 @@ def _build_schema(defaults: dict | None = None) -> vol.Schema:
     """Build the MQTT and entity options schema."""
     defaults = defaults or {}
     platforms = {platform: platform for platform in DEFAULT_ENABLED_PLATFORMS}
+    region_default = resolve_entry_region(defaults, {})
 
-    return vol.Schema(
+    schema: dict[Any, Any] = {
+        vol.Required(
+            CONF_TOPIC_BASE,
+            default=defaults.get(CONF_TOPIC_BASE, DEFAULT_TOPIC_BASE),
+        ): str,
+    }
+    if region_default:
+        schema[
+            vol.Required(CONF_REGION, default=region_default)
+        ] = vol.In(FLEET_API_REGIONS)
+    else:
+        # No silent NA/EU default — user must pick so handoff matches the account.
+        schema[vol.Required(CONF_REGION)] = vol.In(FLEET_API_REGIONS)
+
+    schema.update(
         {
-            vol.Required(
-                CONF_TOPIC_BASE,
-                default=defaults.get(CONF_TOPIC_BASE, DEFAULT_TOPIC_BASE),
-            ): str,
-            vol.Optional(
-                CONF_FLEET_API_BASE,
-                default=defaults.get(CONF_FLEET_API_BASE, DEFAULT_FLEET_API_BASE),
-            ): str,
             vol.Optional(
                 CONF_ATTACH_TO_EXISTING_DEVICE,
                 default=defaults.get(
@@ -273,3 +291,4 @@ def _build_schema(defaults: dict | None = None) -> vol.Schema:
             ): cv.multi_select(platforms),
         }
     )
+    return vol.Schema(schema)

@@ -11,18 +11,29 @@ Public monorepo for:
 
 ## Prerequisite
 
-This project assumes the official Home Assistant `tesla_fleet` integration is already configured and working.
+Configure the official Home Assistant **`tesla_fleet`** integration first (Application
+Credentials, `/config/tesla_fleet.key`, virtual key). This project does not replace it.
 
-## Install
+## Install order
 
-### 1) Add-on
+1. Official **`tesla_fleet`** (above).
+2. DNS/TLS for `<domain>` and `telemetry.<domain>`.
+3. **Tesla Fleet Gateway** add-on (PEM on; telemetry off until step 6).
+4. **`tesla_fleet_stream`** integration (region + OAuth handoff).
+5. Virtual key `https://tesla.com/_ak/<domain>` if not already paired.
+6. Register `telemetry.<domain>` in the Tesla developer app, enable telemetry on the
+   add-on, restart, wake the vehicle.
+
+Details: `docs/setup.md` and the add-on **Documentation** tab.
+
+### Add-on
 
 1. Add this repository URL in Home Assistant add-on store:
    `https://github.com/t-n/homeassistant-tesla_fleet_telemetry`
 2. Install **Tesla Fleet Gateway**.
-3. Configure domain, MQTT, and TLS settings.
+3. Configure domain and MQTT (leave telemetry disabled until stream OAuth works).
 
-### 2) Integration (`tesla_fleet_stream`)
+### Integration (`tesla_fleet_stream`)
 
 This integration is **not** in the default HACS store. Add it as a
 [custom repository](https://www.hacs.xyz/docs/faq/custom_repositories/):
@@ -34,7 +45,7 @@ This integration is **not** in the default HACS store. Add it as a
 5. Click **Add**, then download **Tesla Fleet Stream** from HACS.
 6. Restart Home Assistant.
 7. Add the integration under **Settings → Devices & services**.
-8. Reuse Tesla Fleet app credentials in the config flow when prompted.
+8. Set **Fleet API region**, then reuse Tesla Fleet app credentials when prompted.
 
 Manual alternative: copy `custom_components/tesla_fleet_stream` into your HA `custom_components` folder.
 

@@ -18,21 +18,27 @@ CONF_ATTACH_TO_EXISTING_DEVICE = "attach_to_existing_device"
 CONF_DEVICE_DOMAIN = "device_domain"
 CONF_ENABLED_PLATFORMS = "enabled_platforms"
 CONF_FLEET_API_BASE = "fleet_api_base"
+CONF_REGION = "region"
 CONF_TOPIC_BASE = "topic_base"
 
 DEFAULT_ATTACH_TO_EXISTING_DEVICE = True
 DEFAULT_DEVICE_DOMAIN = "tesla_fleet"
 DEFAULT_ENABLED_PLATFORMS = ["sensor", "binary_sensor", "device_tracker"]
-DEFAULT_FLEET_API_BASE = "https://fleet-api.prd.na.vn.cloud.tesla.com"
 DEFAULT_TOPIC_BASE = "tesla/telemetry"
 
+# Sole Fleet API region setting (integration). The gateway add-on reads the same
+# value from gateway_handoff.json and must not offer a separate region option.
+FLEET_API_REGIONS = ("eu", "na", "cn")
+FLEET_API_BASE_BY_REGION = {
+    "eu": "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+    "na": "https://fleet-api.prd.na.vn.cloud.tesla.com",
+    "cn": "https://fleet-api.prd.cn.vn.cloud.tesla.cn",
+}
 ALLOWED_FLEET_API_HOSTS = frozenset(
-    {
-        "fleet-api.prd.na.vn.cloud.tesla.com",
-        "fleet-api.prd.eu.vn.cloud.tesla.com",
-        "fleet-api.prd.cn.vn.cloud.tesla.cn",
-    }
+    host.removeprefix("https://") for host in FLEET_API_BASE_BY_REGION.values()
 )
+# Backward-compat alias for older call sites / docs snippets.
+DEFAULT_FLEET_API_BASE = FLEET_API_BASE_BY_REGION["na"]
 
 # ISO-3779 VIN charset (no I/O/Q).
 VIN_PATTERN = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
@@ -142,4 +148,53 @@ def normalize_fleet_api_base(fleet_api_base: str) -> str:
     if parsed.path not in ("", "/"):
         raise ValueError("Fleet API base must not include a path")
     return f"https://{parsed.hostname}"
+
+
+def normalize_region(region: str) -> str:
+    """Validate and normalize a Fleet API region code."""
+    cleaned = region.strip().lower()
+    if cleaned not in FLEET_API_BASE_BY_REGION:
+        raise ValueError("Fleet API region must be eu, na, or cn")
+    return cleaned
+
+
+def fleet_api_base_for_region(region: str) -> str:
+    """Return the official Fleet API base URL for a region."""
+    return FLEET_API_BASE_BY_REGION[normalize_region(region)]
+
+
+def region_for_fleet_api_base(fleet_api_base: str) -> str:
+    """Return the region code for an official Fleet API base URL."""
+    normalized = normalize_fleet_api_base(fleet_api_base)
+    for region, base in FLEET_API_BASE_BY_REGION.items():
+        if base == normalized:
+            return region
+    raise ValueError("Fleet API base must be the official NA, EU, or CN Tesla host")
+
+
+def resolve_entry_region(
+    data: dict | None = None,
+    options: dict | None = None,
+) -> str | None:
+    """Resolve region from entry data/options without inventing a default.
+
+    Prefer explicit ``region``. Fall back to deriving it from a stored
+    ``fleet_api_base``. Return None when neither is usable so callers cannot
+    silently pick the wrong continent.
+    """
+    merged = {**(data or {}), **(options or {})}
+    raw_region = merged.get(CONF_REGION)
+    if isinstance(raw_region, str) and raw_region.strip():
+        try:
+            return normalize_region(raw_region)
+        except ValueError:
+            pass
+
+    raw_base = merged.get(CONF_FLEET_API_BASE)
+    if isinstance(raw_base, str) and raw_base.strip():
+        try:
+            return region_for_fleet_api_base(raw_base)
+        except ValueError:
+            pass
+    return None
 

@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import config_entry_oauth2_flow
 
-from .const import CONF_FLEET_API_BASE, DEFAULT_FLEET_API_BASE
+from .const import fleet_api_base_for_region, resolve_entry_region
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,12 +20,13 @@ async def async_fetch_vehicle_vins(hass: HomeAssistant, entry: ConfigEntry) -> l
     if not isinstance(entry.data.get("token"), dict):
         return []
 
-    fleet_base = (
-        entry.options.get(CONF_FLEET_API_BASE)
-        or entry.data.get(CONF_FLEET_API_BASE)
-        or DEFAULT_FLEET_API_BASE
-    ).rstrip("/")
-
+    region = resolve_entry_region(entry.data, entry.options)
+    if region is None:
+        _LOGGER.warning(
+            "Tesla Fleet API region is not configured; set Region in tesla_fleet_stream options"
+        )
+        return []
+    fleet_base = fleet_api_base_for_region(region)
     try:
         implementation = (
             await config_entry_oauth2_flow.async_get_config_entry_implementation(

@@ -21,7 +21,7 @@ Before installing:
 3. A public DNS name you control, for example `tesla.example.com`.
 4. TLS certificates that include **both** `<domain>` and `telemetry.<domain>` (Let's Encrypt add-on recommended; default paths `/ssl/fullchain.pem` and `/ssl/privkey.pem`).
 5. Ability to forward **WAN port 443** to this host's add-on TLS port (default **1443**).
-6. MQTT broker reachable from the add-on (leave blank to auto-use the Mosquitto add-on).
+6. MQTT broker reachable from the add-on (leave broker blank for `127.0.0.1` / Mosquitto on the HA host).
 7. Vehicle firmware that supports Fleet Telemetry (roughly **2023.20.6+**; some options need newer firmware).
 
 ## How the pieces fit together
@@ -65,32 +65,36 @@ If you already use an NGINX SSL proxy (or similar) for the same Tesla domain on 
 
 ## Setup
 
-### 1. Tesla developer app
+Follow this order on a new install.
 
-Reuse or create a Tesla developer app for your domain:
+### 1. Official `tesla_fleet`
 
-- Client ID / Client Secret → Home Assistant Application Credentials (same as official **`tesla_fleet`**)
-- Domain registered in the app
-- Redirect URI: `https://my.home-assistant.io/redirect/oauth`
+Configure the built-in integration first:
 
-Set **Fleet API region** (`na` / `eu` / `cn`) in add-on options as a fallback when the handoff file is not present yet.
+- Tesla Application Credentials (Client ID / Client Secret)
+- Vehicles / account working in Home Assistant
+- Private key at `/config/tesla_fleet.key`
+- Virtual-key pairing when the official integration requires it
 
-### 2. Configure and start the add-on
+### 2. DNS, TLS, and Tesla developer app
+
+- Public hostname for your domain; SANs for **`<domain>`** and **`telemetry.<domain>`**
+- Developer app for that domain; Redirect URI `https://my.home-assistant.io/redirect/oauth`
+- Same Client ID / Secret as Application Credentials used by **`tesla_fleet`**
+
+### 3. Configure and start this add-on
 
 Minimum options:
 
 - **Domain** — public hostname
-- **Region** — matches your Tesla developer app / account region
-- **MQTT** — leave broker/username/password blank to auto-discover the Mosquitto add-on; or set an explicit host (with host networking, prefer the HA LAN IP over `core-mosquitto`), topic base, and credentials if required
+- **MQTT** — leave broker blank to use `127.0.0.1` (typical Mosquitto host port); leave username/password blank to pick up Supervisor Mosquitto credentials; or set an explicit host/credentials for an external broker, topic base as needed
 - **Hosts → PEM enabled** — usually on
-- **Hosts → Telemetry enabled** — leave **off** until the telemetry subdomain is registered and TLS is ready
+- **Hosts → Telemetry enabled** — leave **off** until steps 4–6 below
 - **Advanced** — TLS port, cert/key paths under `/ssl/` if not using the Let's Encrypt defaults
 
-Start the add-on and read the logs. Look for **ACTION REQUIRED** blocks when something needs attention.
+Forward **WAN `:443`** to the gateway listener (default **1443**). Start the add-on and read the logs for **ACTION REQUIRED** blocks.
 
-### 3. Confirm the public PEM
-
-Open (from the internet or via the gateway port):
+### 4. Confirm the public PEM
 
 ```text
 https://<domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
@@ -98,24 +102,23 @@ https://<domain>/.well-known/appspecific/com.tesla.3p.public-key.pem
 
 If the file was missing, the add-on derives it from `/config/tesla_fleet.key` into `/share/tesla/...`.
 
-### 4. Install `tesla_fleet_stream` and complete OAuth
+### 5. Install `tesla_fleet_stream` and complete OAuth
 
-1. Install the custom integration (HACS or copy `custom_components/tesla_fleet_stream`).
+1. Install the custom integration (HACS custom repository or copy `custom_components/tesla_fleet_stream`).
 2. Add it under **Settings → Devices & services**.
-3. Reuse Tesla Application Credentials from **`tesla_fleet`** when prompted.
-4. Finish OAuth via the standard `my.home-assistant.io` redirect.
+3. Set **Fleet API region** (`eu` / `na` / `cn`) — shared with this add-on via handoff; there is no separate add-on region option.
+4. Reuse Tesla Application Credentials from **`tesla_fleet`** when prompted.
+5. Finish OAuth via the standard `my.home-assistant.io` redirect.
 
-The integration writes `gateway_handoff.json`. The add-on picks it up automatically. You never enter the Client Secret in add-on options.
+The integration writes `gateway_handoff.json`. The add-on picks it up on the next start/apply. You never enter the Client Secret in add-on options.
 
-### 5. Pair the virtual key
-
-On a phone with the Tesla app:
+### 6. Pair the virtual key (if not already done)
 
 ```text
 https://tesla.com/_ak/<your-domain>
 ```
 
-### 6. Enable telemetry
+### 7. Enable telemetry
 
 1. Register **`telemetry.<domain>`** in the Tesla developer app and confirm TLS/PEM reachability for that host.
 2. In add-on **Hosts**, enable **Telemetry subdomain (mTLS streaming)**.
@@ -123,27 +126,26 @@ https://tesla.com/_ak/<your-domain>
 
 Optional: set **VIN allowlist** to limit which vehicles receive the telemetry config.
 
-### 7. Telemetry fields (optional)
+### 8. Telemetry fields (optional)
 
 **Telemetry fields** controls which signals are requested from the vehicle:
 
 - `interval_seconds` — minimum seconds between sends **when the value changes**
 - `resend_interval_seconds` — optional periodic resend even when unchanged (firmware **2024.44.32+**; counts toward Fleet Telemetry billing). Omit for change-only.
+- `include_fields` — optional companions included in the **same** payload when this field is published, even if unchanged (firmware **~2026.26.6+**). Defaults attach pack V/I to `VehicleSpeed` and energy fields to `Odometer` for coherent derived sensors.
 
-Leave the list empty to use the built-in defaults. Fields that `tesla_fleet_stream` does not map still appear on MQTT but may not create entities.
+**When entities show up:** save options and **restart the add-on** so the list is pushed to Tesla. Home Assistant does **not** create entities the moment you add a field. The vehicle must be **awake and streaming**; the first MQTT sample creates or updates the mapped entity. Change-only fields may stay silent until the value changes (use `resend_interval_seconds` for a periodic sample). Derived sensors (Power, Consumption, …) appear only after their required inputs have arrived. Fields not mapped by `tesla_fleet_stream` still reach MQTT but never become entities. Leave the list empty to use the built-in defaults.
 
-### 8. Verify
+### 9. Verify
 
 1. Wake the vehicle (sleeping cars stream nothing).
 2. Watch MQTT under your topic base.
 3. Confirm entities under **`tesla_fleet_stream`**.
-
 ## Options reference
 
 | Option | Purpose |
 |--------|---------|
 | `domain` | Public hostname for PEM and telemetry subdomains |
-| `region` | Fleet API region fallback: `na`, `eu`, or `cn` |
 | `mqtt.*` | Broker, topic base, optional username/password |
 | `hosts.pem_enabled` | Serve public PEM on `<domain>` |
 | `hosts.telemetry_enabled` | Accept Fleet Telemetry on `telemetry.<domain>` |
@@ -153,16 +155,19 @@ Leave the list empty to use the built-in defaults. Fields that `tesla_fleet_stre
 | `vin_allowlist` | Optional list of VINs to configure |
 | `telemetry_fields` | Fields and intervals pushed to Tesla |
 
+Fleet API region is set only in **`tesla_fleet_stream`** (eu/na/cn) and shared via handoff.
+
 ## Troubleshooting
 
 | Problem | What to check |
 |---------|----------------|
 | Public key not reachable | WAN 443 → gateway TLS port; cert covers `<domain>`; PEM hosting enabled |
-| OAuth / token errors | Re-authenticate **`tesla_fleet_stream`**; handoff must include a non-expired access token |
+| OAuth / token errors | Confirm Region in **`tesla_fleet_stream`**; re-authenticate if the handoff access token expired |
 | Handoff expired | Re-auth the integration — the add-on does not refresh tokens |
 | No telemetry data | Wake the vehicle; virtual key paired; MQTT reachable; `hosts.telemetry_enabled` on after subdomain registration |
+| New field / sensor missing after editing Telemetry fields | Restart add-on after save; wake the car; wait for first MQTT sample (or set `resend_interval_seconds`); derived sensors need their inputs — see docs |
 | Stream drops after restart | Watchdog may wake/re-apply after disconnects; check logs for recovery messages |
-| Fleet API errors | Region / `fleet_api_base` in handoff matches your Tesla app registration |
+| Fleet API errors (incl. HTTP 421) | Set Region (`eu`/`na`/`cn`) in **`tesla_fleet_stream`** so handoff matches your Tesla app; restart the add-on |
 | `missing_key` | Pair virtual key via `https://tesla.com/_ak/<domain>` |
 | TLS SAN warning | Certificate must include `telemetry.<domain>` |
 | Scanner / browser noise on telemetry host | `client didn't provide a certificate` from non-vehicle clients is normal |

@@ -2,52 +2,55 @@ configuration:
   domain:
     name: Domain
     description: Public hostname for Tesla PEM hosting and telemetry. Forward port 443 on this domain to the gateway listener port below.
-  region:
-    name: Fleet API region
-    description: Fallback Fleet API region when the tesla_fleet_stream handoff file is missing. Usually overridden by integration OAuth.
   mqtt:
     name: MQTT
     description: >-
-      Broker for decoded telemetry (tesla_fleet_stream). Leave broker and
-      credentials blank to auto-use the Mosquitto add-on via Supervisor discovery.
-      With host networking, if discovery is unavailable set broker to the HA host
-      LAN IP (not core-mosquitto).
-    broker:
-      name: Broker
-      description: MQTT hostname or IP. Leave blank to auto-discover the Mosquitto add-on.
-    username:
-      name: Username
-      description: Optional. Leave blank with password to use Supervisor-discovered Mosquitto credentials.
-    password:
-      name: Password
-      description: Optional. Leave blank with username to use Supervisor-discovered Mosquitto credentials.
+      Broker for decoded telemetry (tesla_fleet_stream). Leave broker blank to
+      use 127.0.0.1 (Mosquitto published on the HA host). Leave credentials blank
+      to use Supervisor-discovered Mosquitto add-on credentials. Set an explicit
+      host for an external broker (not core-mosquitto).
+    fields:
+      broker:
+        name: Broker
+        description: MQTT hostname or IP. Leave blank to use 127.0.0.1 on the HA host.
+      topic_base:
+        name: Topic base
+        description: MQTT topic prefix for decoded telemetry (must match tesla_fleet_stream).
+      username:
+        name: Username
+        description: Optional. Leave blank with password to use Supervisor-discovered Mosquitto credentials.
+      password:
+        name: Password
+        description: Optional. Leave blank with username to use Supervisor-discovered Mosquitto credentials.
   hosts:
     name: Hosts
     description: Control PEM on the main domain and mTLS streaming on the telemetry subdomain.
-    pem_enabled:
-      name: Main domain (PEM)
-      description: Serve the Tesla public key PEM on your domain. Required for virtual key pairing and developer app registration.
-    telemetry_enabled:
-      name: Telemetry subdomain (mTLS streaming)
-      description: Enable after registering telemetry.<domain> in Tesla. Routes vehicle mTLS to fleet-telemetry and auto-applies telemetry config on startup.
+    fields:
+      pem_enabled:
+        name: Main domain (PEM)
+        description: Serve the Tesla public key PEM on your domain. Required for virtual key pairing and developer app registration.
+      telemetry_enabled:
+        name: Telemetry subdomain (mTLS streaming)
+        description: Enable after registering telemetry.<domain> in Tesla. Routes vehicle mTLS to fleet-telemetry and auto-applies telemetry config on startup.
   advanced:
     name: Advanced
     description: Optional overrides. Defaults work for most setups.
-    tls_port:
-      name: Gateway listener port
-      description: TLS port this add-on listens on. Forward your domain port 443 to this port on your router.
-    telemetry_host:
-      name: Telemetry hostname override
-      description: Hostname for vehicle mTLS (default telemetry.<domain>). Serves PEM until telemetry subdomain streaming is enabled.
-    telemetry_access_log:
-      name: Request access log
-      description: Log PEM, telemetry, and OAuth requests in the add-on log (includes Tesla Range requests to the public key).
-    certfile:
-      name: TLS certificate file
-      description: Certificate chain file used by nginx and fleet-telemetry (default /ssl/fullchain.pem from the Let's Encrypt add-on).
-    keyfile:
-      name: TLS private key file
-      description: Private key file matching the TLS certificate (default /ssl/privkey.pem from the Let's Encrypt add-on).
+    fields:
+      tls_port:
+        name: Gateway listener port
+        description: TLS port this add-on listens on. Forward your domain port 443 to this port on your router.
+      telemetry_host:
+        name: Telemetry hostname override
+        description: Hostname for vehicle mTLS (default telemetry.<domain>). Serves PEM until telemetry subdomain streaming is enabled.
+      telemetry_access_log:
+        name: Request access log
+        description: Log PEM, telemetry, and OAuth requests in the add-on log (includes Tesla Range requests to the public key).
+      certfile:
+        name: TLS certificate file
+        description: Certificate chain file used by nginx and fleet-telemetry (default /ssl/fullchain.pem from the Let's Encrypt add-on).
+      keyfile:
+        name: TLS private key file
+        description: Private key file matching the TLS certificate (default /ssl/privkey.pem from the Let's Encrypt add-on).
   vin_allowlist:
     name: VIN allowlist
     description: Optional list of VINs to include in telemetry activation. Leave empty to include all vehicles returned by Fleet API.
@@ -58,7 +61,36 @@ configuration:
       interval_seconds (minimum seconds between updates when the value changes)
       and optionally resend_interval_seconds (periodic resend even when unchanged;
       requires vehicle firmware 2024.44.32+; omit for Tesla's change-only default).
-      Only fields with a matching entity in the tesla_fleet_stream integration
-      appear in Home Assistant; others still reach MQTT. Leave empty to use the built-in default set. On every add-on
-      start, options are reconciled into fleet_telemetry_config.json and pushed
-      to Tesla when needed — save options and restart the add-on.
+      Leave interval or resend blank to use the built-in default for that field
+      (blank resend stays change-only unless the default includes a resend).
+      Optional include_fields attach companions in the same payload when this
+      field is published (firmware ~2026.26.6+; see field help).
+      Save options and restart the add-on so the field list is pushed to Tesla.
+      Home Assistant entities do not appear the moment you add a field: the car
+      must be awake and streaming, then the first MQTT sample creates or updates
+      the entity (change-only fields may wait until the value changes unless you
+      set resend_interval_seconds). Derived sensors such as Power / Consumption
+      appear only after their required inputs have arrived. Only fields mapped by
+      tesla_fleet_stream become entities; others still reach MQTT. Leave empty to
+      use the built-in default set.
+    fields:
+      name:
+        name: Field
+        description: Tesla Fleet Telemetry field name.
+      interval_seconds:
+        name: Interval (seconds)
+        description: >-
+          Minimum seconds between updates when the value changes. Leave blank for
+          the built-in default for this field.
+      resend_interval_seconds:
+        name: Resend interval (seconds)
+        description: >-
+          Optional periodic resend even when unchanged (firmware 2024.44.32+).
+          Leave blank for the built-in default, or change-only when the default has
+          no resend.
+      include_fields:
+        name: Include fields
+        description: >-
+          Optional companions sent in the same payload when this field is
+          published, even if unchanged (firmware ~2026.26.6+). Used by defaults
+          so PackVoltage/PackCurrent ride with VehicleSpeed for live Wh/km.

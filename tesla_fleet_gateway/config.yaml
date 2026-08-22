@@ -1,6 +1,6 @@
 name: "Tesla Fleet Gateway"
 description: "Single-host Tesla PEM and Fleet Telemetry gateway"
-version: "0.6.0"
+version: "0.6.3"
 slug: "tesla_fleet_gateway"
 url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
 arch:
@@ -25,7 +25,6 @@ map:
     path: /addon_config
 options:
   domain: "tesla.example.com"
-  region: "na"
   mqtt:
     broker: ""
     topic_base: "tesla/telemetry"
@@ -33,7 +32,7 @@ options:
     password: ""
   hosts:
     pem_enabled: true
-    telemetry_enabled: true
+    telemetry_enabled: false
   advanced:
     tls_port: 1443
     telemetry_host: ""
@@ -46,6 +45,9 @@ options:
       interval_seconds: 1
     - name: "VehicleSpeed"
       interval_seconds: 10
+      include_fields:
+        - "PackVoltage"
+        - "PackCurrent"
     - name: "Location"
       interval_seconds: 10
     - name: "ChargeAmps"
@@ -87,6 +89,9 @@ options:
       resend_interval_seconds: 300
     - name: "Odometer"
       interval_seconds: 10
+      include_fields:
+        - "LifetimeEnergyUsed"
+        - "EnergyRemaining"
     - name: "PackVoltage"
       interval_seconds: 10
     - name: "PackCurrent"
@@ -96,7 +101,6 @@ options:
       resend_interval_seconds: 300
 schema:
   domain: str
-  region: list(eu|na|cn)
   mqtt:
     broker: str?
     topic_base: str
@@ -117,3 +121,5 @@ schema:
     - name: list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed)
       interval_seconds: int(1,)?
       resend_interval_seconds: int(1,)?
+      include_fields:
+        - list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed)

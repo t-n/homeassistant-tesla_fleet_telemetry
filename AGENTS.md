@@ -78,11 +78,12 @@ Internet :443 → advanced.tls_port
 | Group | Purpose |
 |-------|---------|
 | **`domain`** | Public hostname for PEM and Tesla registration |
-| **`region`** | `eu` / `na` / `cn` Fleet API fallback |
 | **`mqtt`** | Broker, topic base, optional auth |
 | **`hosts`** | `pem_enabled`, `telemetry_enabled` |
 | **`advanced`** | TLS port, telemetry host override, cert paths, access log |
-| **`telemetry_fields`** | Field name enum + optional `interval_seconds` |
+| **`telemetry_fields`** | Field name enum + optional `interval_seconds` / `resend_interval_seconds` / `include_fields` |
+
+Fleet API **region** (`eu` / `na` / `cn`) is configured only in **`tesla_fleet_stream`** and exported to the add-on via `gateway_handoff.json`. The add-on must not offer a separate region setting.
 
 **Internal** defaults belong in **`addon-defaults.sh`**, not the UI. When adding an option, prefer an internal constant unless users must set it.
 
@@ -95,7 +96,7 @@ When **`hosts.telemetry_enabled`** is `true`, runtime enables mTLS passthrough, 
 | Path | Contents |
 |------|----------|
 | `/config/tesla_fleet.key` | Vehicle-command private key (official `tesla_fleet`) |
-| `/config/tesla_fleet_stream/gateway_handoff.json` | Short-lived access token + `fleet_api_base` (no refresh token) |
+| `/config/tesla_fleet_stream/gateway_handoff.json` | Short-lived access token + `region` / `fleet_api_base` (no refresh token) |
 | `/share/tesla/.../com.tesla.3p.public-key.pem` | Public PEM only |
 | `/addon_configs/<slug>_tesla_fleet_gateway/` | Private add-on state (telemetry request JSON, etc.) |
 
@@ -108,7 +109,8 @@ Stream entities should match official **`tesla_fleet`** naming where an equivale
 1. Reuse the official **`translation_key`** (even if the stream platform differs, e.g. lock → binary_sensor).
 2. Copy English/Swedish display names from official sources, then append **` (live)`**.
 3. Reuse official enum/state labels when present.
-4. Invent a new key only when there is no official equivalent; keep `{api_group}_{field}` style.
+4. Match official **`entity_category`** (e.g. Diagnostics vs Sensors) when an equivalent exists. For stream-only entities, follow the closest official pattern (pack detail / lifetime totals / drive efficiency → Diagnostics; combined charger power / SOC / range → Sensors).
+5. Invent a new key only when there is no official equivalent; keep `{api_group}_{field}` style.
 
 **Sources (in order):**
 

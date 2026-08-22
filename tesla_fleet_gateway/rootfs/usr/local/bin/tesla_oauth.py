@@ -28,9 +28,16 @@ ALLOWED_FLEET_API_HOSTS = frozenset(
     }
 )
 # Keep intervals aligned with config.yaml default telemetry_fields.
+# include_fields (firmware ~2026.26.6+) attaches companions in the same payload
+# when the parent is published, even if companions are unchanged — improves
+# derived power/Wh/km coherence. Companions may still be listed top-level for
+# updates when the parent is quiet (e.g. parked with no speed changes).
 DEFAULT_TELEMETRY_FIELDS = {
     "Soc": {"interval_seconds": 1},
-    "VehicleSpeed": {"interval_seconds": 10},
+    "VehicleSpeed": {
+        "interval_seconds": 10,
+        "include_fields": ["PackVoltage", "PackCurrent"],
+    },
     "Location": {"interval_seconds": 10},
     "ChargeAmps": {"interval_seconds": 1},
     "InsideTemp": {"interval_seconds": 60},
@@ -46,10 +53,11 @@ DEFAULT_TELEMETRY_FIELDS = {
     "IdealBatteryRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
     "ChargeRateMilePerHour": {"interval_seconds": 1},
     "RatedRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    # Keep PackVoltage / PackCurrent / VehicleSpeed on the same interval so
-    # derived live Wh/km is not computed from mismatched samples.
     "EnergyRemaining": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "Odometer": {"interval_seconds": 10},
+    "Odometer": {
+        "interval_seconds": 10,
+        "include_fields": ["LifetimeEnergyUsed", "EnergyRemaining"],
+    },
     "PackVoltage": {"interval_seconds": 10},
     "PackCurrent": {"interval_seconds": 10},
     "LifetimeEnergyUsed": {"interval_seconds": 10, "resend_interval_seconds": 300},
@@ -186,6 +194,14 @@ def load_configured_telemetry_fields(options_file=None):
         resend = item.get("resend_interval_seconds")
         if not isinstance(resend, bool) and isinstance(resend, int) and resend > 0:
             entry["resend_interval_seconds"] = resend
+        include = item.get("include_fields")
+        if isinstance(include, list):
+            cleaned_include = []
+            for field in include:
+                if isinstance(field, str) and field.strip():
+                    cleaned_include.append(field.strip())
+            if cleaned_include:
+                entry["include_fields"] = cleaned_include
         fields[name] = entry
         if name not in SUPPORTED_TELEMETRY_FIELDS:
             log(
@@ -822,11 +838,19 @@ def verify_tokens(settings):
             )
         return 1
     except requests.HTTPError as error:
-        warn_next_step(
-            "Tesla Fleet API rejected the OAuth access token",
-            "Verify Fleet API region matches your Tesla developer app region and granted scopes",
-            [str(error)],
-        )
+        status = getattr(error.response, "status_code", None) if error.response is not None else None
+        if status == 421:
+            warn_next_step(
+                "Tesla Fleet API region does not match this account (HTTP 421)",
+                "Set Region (eu/na/cn) in the tesla_fleet_stream integration options to match your Tesla developer app, then restart this add-on",
+                [str(error)],
+            )
+        else:
+            warn_next_step(
+                "Tesla Fleet API rejected the OAuth access token",
+                "Set Region in tesla_fleet_stream options, verify granted scopes, or re-authenticate if the token was revoked",
+                [str(error)],
+            )
         return 1
     except Exception as error:
         warn_next_step(

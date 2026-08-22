@@ -14,10 +14,10 @@ This add-on does **not** replace Home Assistant or the official **`tesla_fleet`*
 
 ## Quick start
 
-1. Set **Domain**, **Fleet API region**, and **MQTT** options, then start the add-on.
-2. Confirm the public PEM is reachable at `https://<domain>/.well-known/appspecific/com.tesla.3p.public-key.pem`.
-3. Install **`tesla_fleet_stream`**, reuse Tesla Application Credentials, and complete OAuth.
-4. Pair the virtual key: `https://tesla.com/_ak/<domain>`.
-5. Register **`telemetry.<domain>`** in the Tesla developer app, then enable **Telemetry subdomain** in **Hosts**.
+1. Finish official **`tesla_fleet`** setup (credentials, `/config/tesla_fleet.key`, virtual key).
+2. Install this add-on; set **Domain** and **MQTT**; leave **Telemetry subdomain** off; confirm the public PEM.
+3. Install **`tesla_fleet_stream`**, set **Fleet API region**, complete OAuth (handoff for this add-on).
+4. Pair the virtual key if needed: `https://tesla.com/_ak/<domain>`.
+5. Register **`telemetry.<domain>`** in the Tesla developer app, enable **Telemetry subdomain** in **Hosts**, restart the add-on.
 
 Open the **Documentation** tab for full setup, options, security notes, and troubleshooting.

@@ -326,35 +326,17 @@ resolve_public_domain() {
 }
 
 resolve_fleet_api_audience() {
-    local legacy_audience region
+    local legacy_audience
 
+    # Fleet API region lives solely in tesla_fleet_stream (exported via
+    # gateway_handoff.json). Do not read a separate add-on region option.
     legacy_audience="$(config_default 'tesla_oauth.audience' '')"
     if [ -n "$legacy_audience" ] && [ "$legacy_audience" != "null" ]; then
         echo "$legacy_audience"
         return
     fi
 
-    if bashio::config.exists 'region'; then
-        region="$(bashio::config 'region')"
-    else
-        echo "$DEFAULT_TESLA_FLEET_API_AUDIENCE_NA"
-        return
-    fi
-
-    case "$region" in
-        eu)
-            echo "$DEFAULT_TESLA_FLEET_API_AUDIENCE_EU"
-            ;;
-        na)
-            echo "$DEFAULT_TESLA_FLEET_API_AUDIENCE_NA"
-            ;;
-        cn)
-            echo "$DEFAULT_TESLA_FLEET_API_AUDIENCE_CN"
-            ;;
-        *)
-            echo "$DEFAULT_TESLA_FLEET_API_AUDIENCE_NA"
-            ;;
-    esac
+    echo ""
 }
 
 https_listener_url() {
@@ -428,19 +410,17 @@ fi
 
 # Prefer Supervisor MQTT discovery (Mosquitto add-on) when broker/creds are blank.
 # Discovery also supplies the Mosquitto "addons" credentials anonymous access often lacks.
+# With host_network, discovered hosts (e.g. core-mosquitto) are unreliable — leave
+# mqtt.broker blank to fall through to DEFAULT_MQTT_BROKER (127.0.0.1) below.
 if bashio::services.available "mqtt"; then
-    discovered_host="$(bashio::services 'mqtt' 'host')"
     discovered_port="$(bashio::services 'mqtt' 'port')"
     discovered_user="$(bashio::services 'mqtt' 'username')"
     discovered_password="$(bashio::services 'mqtt' 'password')"
 
     if [ -z "$MQTT_BROKER" ]; then
-        MQTT_BROKER="$discovered_host"
         if [ -n "$discovered_port" ] && [ "$discovered_port" != "null" ]; then
             MQTT_PORT="$discovered_port"
         fi
-        bashio::log.info "ℹ️ MQTT broker auto-discovered from Supervisor"
-        bashio::log.info "⎣ Using ${MQTT_BROKER}:${MQTT_PORT}"
     fi
 
     if [ -z "$MQTT_USERNAME" ] && [ -z "$MQTT_PASSWORD" ]; then
@@ -451,6 +431,12 @@ if bashio::services.available "mqtt"; then
             bashio::log.info "⎣ Username: ${MQTT_USERNAME}"
         fi
     fi
+fi
+
+if [ -z "$MQTT_BROKER" ]; then
+    MQTT_BROKER="$DEFAULT_MQTT_BROKER"
+    bashio::log.info "ℹ️ MQTT broker not set; using host loopback (host_network)"
+    bashio::log.info "⎣ Using ${MQTT_BROKER}:${MQTT_PORT}"
 fi
 
 MQTT_TOPIC_BASE="$(bashio::config 'mqtt.topic_base')"
@@ -725,25 +711,54 @@ handoff_access_token_valid() {
 resolve_oauth_handoff() {
     local handoff_file="$DEFAULT_TESLA_OAUTH_HANDOFF_FILE"
     local handoff_audience=""
+    local handoff_region=""
 
     if handoff_access_token_valid "$handoff_file"; then
         TESLA_OAUTH_USE_INTEGRATION_HANDOFF=true
         TESLA_OAUTH_USE_INTEGRATION_TOKEN=true
+        handoff_region="$(jq -r '.region // empty' "$handoff_file")"
         handoff_audience="$(jq -r '.fleet_api_base // empty' "$handoff_file")"
-        case "$handoff_audience" in
-            https://fleet-api.prd.na.vn.cloud.tesla.com|\
-            https://fleet-api.prd.eu.vn.cloud.tesla.com|\
-            https://fleet-api.prd.cn.vn.cloud.tesla.cn)
-                TESLA_OAUTH_AUDIENCE="$handoff_audience"
+        case "$handoff_region" in
+            eu)
+                TESLA_OAUTH_AUDIENCE="$DEFAULT_TESLA_FLEET_API_AUDIENCE_EU"
+                ;;
+            na)
+                TESLA_OAUTH_AUDIENCE="$DEFAULT_TESLA_FLEET_API_AUDIENCE_NA"
+                ;;
+            cn)
+                TESLA_OAUTH_AUDIENCE="$DEFAULT_TESLA_FLEET_API_AUDIENCE_CN"
                 ;;
             "")
+                case "$handoff_audience" in
+                    https://fleet-api.prd.na.vn.cloud.tesla.com|\
+                    https://fleet-api.prd.eu.vn.cloud.tesla.com|\
+                    https://fleet-api.prd.cn.vn.cloud.tesla.cn)
+                        TESLA_OAUTH_AUDIENCE="$handoff_audience"
+                        ;;
+                    "")
+                        warn_next_step \
+                            "gateway_handoff.json is missing Fleet API region" \
+                            "Set Region (eu/na/cn) in the tesla_fleet_stream integration options, then restart this add-on"
+                        ;;
+                    *)
+                        warn_next_step \
+                            "gateway_handoff.json has an unsupported fleet_api_base" \
+                            "Set Region (eu/na/cn) in the tesla_fleet_stream integration options"
+                        ;;
+                esac
                 ;;
             *)
                 warn_next_step \
-                    "gateway_handoff.json has an unsupported fleet_api_base" \
-                    "Set Fleet API base in tesla_fleet_stream options to the official NA, EU, or CN host"
+                    "gateway_handoff.json has an unsupported region" \
+                    "Set Region (eu/na/cn) in the tesla_fleet_stream integration options"
                 ;;
         esac
+        if [ -n "$TESLA_OAUTH_AUDIENCE" ] && [ -n "$handoff_audience" ] \
+            && [ "$handoff_audience" != "$TESLA_OAUTH_AUDIENCE" ]; then
+            warn_next_step \
+                "gateway_handoff.json region and fleet_api_base disagree; using region" \
+                "Re-save tesla_fleet_stream options so handoff is rewritten consistently"
+        fi
         log_success \
             "Tesla OAuth is managed by Home Assistant" \
             "Access token handoff: ${handoff_file}"
@@ -907,11 +922,6 @@ else
         "Before applying Fleet Telemetry config, place the private key there and enable hosts.telemetry_enabled"
 fi
 
-if [ -z "$MQTT_BROKER" ]; then
-    fail_next_step \
-        "MQTT broker is not configured and no Supervisor mqtt service was found" \
-        "Install the Mosquitto broker add-on, or set mqtt.broker to a reachable host (with host_network, prefer the HA host LAN IP — Docker names like core-mosquitto are unreliable)"
-fi
 if { [ -n "$MQTT_USERNAME" ] && [ -z "$MQTT_PASSWORD" ]; } || { [ -z "$MQTT_USERNAME" ] && [ -n "$MQTT_PASSWORD" ]; }; then
     fail_next_step \
         "MQTT username and password must both be set or both be empty" \
@@ -961,12 +971,16 @@ else
 fi
 
 if [ "$TESLA_OAUTH_USE_INTEGRATION_HANDOFF" = "true" ]; then
-    if /usr/local/bin/tesla_oauth.py verify; then
+    if [ -z "$TESLA_OAUTH_AUDIENCE" ]; then
+        warn_next_step \
+            "Fleet API region is missing from the tesla_fleet_stream handoff" \
+            "Set Region (eu/na/cn) in the tesla_fleet_stream integration options, then restart this add-on"
+    elif /usr/local/bin/tesla_oauth.py verify; then
         TESLA_OAUTH_TOKENS_VERIFIED=true
     else
         warn_next_step \
             "Tesla OAuth handoff token could not be verified" \
-            "Re-authenticate the tesla_fleet_stream integration in Home Assistant"
+            "Confirm Region in tesla_fleet_stream matches your Tesla account, or re-authenticate if the token expired"
     fi
 elif [ -f "$TESLA_OAUTH_TOKEN_CACHE_FILE" ] \
     && jq -e '.access_token | type == "string" and length > 0' "$TESLA_OAUTH_TOKEN_CACHE_FILE" >/dev/null 2>&1 \

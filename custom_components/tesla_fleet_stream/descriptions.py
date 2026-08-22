@@ -135,6 +135,9 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
+        # Official exposes combined charger_power as a primary sensor; AC/DC split
+        # is more like charger_voltage / charger_actual_current (diagnostic).
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "DCChargingPower": TeslaFleetStreamSensorDescription(
         key="dc_charging_power",
@@ -144,6 +147,7 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "TimeToFullCharge": TeslaFleetStreamSensorDescription(
         key="time_to_full_charge",
@@ -161,6 +165,8 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.ENERGY_STORAGE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
+        # No official twin; treat like other detailed pack metrics (vs primary SOC %).
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "Odometer": TeslaFleetStreamSensorDescription(
         key="odometer",
@@ -170,6 +176,7 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "PackVoltage": TeslaFleetStreamSensorDescription(
         key="pack_voltage",
@@ -199,6 +206,8 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         suggested_display_precision=2,
+        # Lifetime accumulator — same section as official odometer.
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 }
 
@@ -222,6 +231,7 @@ DERIVED_PACK_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
     device_class=SensorDeviceClass.POWER,
     state_class=SensorStateClass.MEASUREMENT,
     suggested_display_precision=2,
+    entity_category=EntityCategory.DIAGNOSTIC,
 )
 
 # Instant Wh/km from pack power ÷ speed while moving.
@@ -233,6 +243,8 @@ DERIVED_CONSUMPTION_DESCRIPTION = TeslaFleetStreamSensorDescription(
     device_class=SensorDeviceClass.ENERGY_DISTANCE,
     state_class=SensorStateClass.MEASUREMENT,
     suggested_display_precision=0,
+    # No official twin; same section as drive_state_power (efficiency / drive detail).
+    entity_category=EntityCategory.DIAGNOSTIC,
 )
 
 # Drive-session average Wh/km from Δenergy / Δodometer while moving.
@@ -244,6 +256,7 @@ DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION = TeslaFleetStreamSensorDescription(
     device_class=SensorDeviceClass.ENERGY_DISTANCE,
     state_class=SensorStateClass.MEASUREMENT,
     suggested_display_precision=0,
+    entity_category=EntityCategory.DIAGNOSTIC,
 )
 
 SENSOR_DESCRIPTIONS_BY_KEY: dict[str, TeslaFleetStreamSensorDescription] = {
@@ -294,6 +307,7 @@ DOOR_BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescripti
         raw_field=DOOR_FIELD,
         translation_key=key,
         device_class=BinarySensorDeviceClass.DOOR,
+        entity_category=EntityCategory.DIAGNOSTIC,
     )
     for key in DOOR_SENSORS.values()
 }
