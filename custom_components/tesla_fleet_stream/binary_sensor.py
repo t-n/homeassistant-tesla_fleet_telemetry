@@ -46,14 +46,14 @@ async def async_setup_entry(
             )
             created.add(entity_key)
 
-    for vin, key in list(runtime.iter_known_entities("binary_sensor")):
-        add_binary_sensor(vin, key)
-
     entry.async_on_unload(
         async_dispatcher_connect(
             hass, new_entity_signal("binary_sensor"), add_binary_sensor
         )
     )
+
+    for vin, key in list(runtime.iter_known_entities("binary_sensor")):
+        add_binary_sensor(vin, key)
 
 
 class TeslaFleetStreamBinarySensor(TeslaFleetStreamEntity, BinarySensorEntity):

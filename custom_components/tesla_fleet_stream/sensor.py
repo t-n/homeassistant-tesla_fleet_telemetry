@@ -49,12 +49,14 @@ async def async_setup_entry(
             async_add_entities([TeslaFleetStreamSensor(runtime, vin, description)])
             created.add(entity_key)
 
-    for vin, key in list(runtime.iter_known_entities("sensor")):
-        add_sensor(vin, key)
-
+    # Listen before the initial pass so restore/recompute can create derived
+    # entities (e.g. pack power) instead of marking them known with no listener.
     entry.async_on_unload(
         async_dispatcher_connect(hass, new_entity_signal("sensor"), add_sensor)
     )
+
+    for vin, key in list(runtime.iter_known_entities("sensor")):
+        add_sensor(vin, key)
 
 
 class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):

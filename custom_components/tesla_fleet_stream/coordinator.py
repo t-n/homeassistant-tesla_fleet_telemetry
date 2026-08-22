@@ -216,6 +216,9 @@ class TeslaFleetStreamRuntime:
                 for description in SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("sensor", vin, description.key)
                 self._ensure_entity("sensor", vin, COMBINED_CHARGER_POWER_KEY)
+                # Pre-register derived pack power so restore/MQTT cannot mark it
+                # known before the sensor platform is listening.
+                self._ensure_entity("sensor", vin, DERIVED_PACK_POWER_KEY)
 
             if "binary_sensor" in self.enabled_platforms:
                 for description in BINARY_SENSOR_DESCRIPTIONS.values():
