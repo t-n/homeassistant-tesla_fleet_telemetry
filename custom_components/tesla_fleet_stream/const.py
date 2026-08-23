@@ -72,6 +72,15 @@ CONSUMPTION_INPUT_RAW_FIELDS = frozenset(
 DERIVED_PACK_POWER_KEY = "power"
 DERIVED_CONSUMPTION_KEY = "consumption"
 DERIVED_CONSUMPTION_AVERAGE_KEY = "consumption_average"
+# Recomputed from other telemetry — do not restore stale HA state over inputs.
+DERIVED_SENSOR_KEYS = frozenset(
+    {
+        DERIVED_PACK_POWER_KEY,
+        DERIVED_CONSUMPTION_KEY,
+        DERIVED_CONSUMPTION_AVERAGE_KEY,
+        COMBINED_CHARGER_POWER_KEY,
+    }
+)
 # VehicleSpeed is stored in native mph; ignore crawl/noise below this.
 CONSUMPTION_MIN_SPEED_MPH = 3.0
 MPH_TO_KMH = 1.609344

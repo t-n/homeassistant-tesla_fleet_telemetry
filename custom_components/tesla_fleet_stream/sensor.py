@@ -20,7 +20,7 @@ from homeassistant.util.variance import ignore_variance
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import new_entity_signal
+from .const import DERIVED_SENSOR_KEYS, new_entity_signal
 from .coordinator import TeslaFleetStreamRuntime
 from .descriptions import SENSOR_DESCRIPTIONS_BY_KEY
 from .entity import TeslaFleetStreamEntity
@@ -73,6 +73,9 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
 
     async def _async_restore_state(self) -> None:
         """Restore runtime state using native sensor data when available."""
+        if self._key in DERIVED_SENSOR_KEYS:
+            return
+
         if (last_sensor_data := await self.async_get_last_sensor_data()) is not None:
             if self._restore_from_sensor_data(last_sensor_data.native_value):
                 return
