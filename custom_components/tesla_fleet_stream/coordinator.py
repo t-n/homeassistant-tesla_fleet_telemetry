@@ -834,8 +834,12 @@ def _combine_charging_power(ac: Any, dc: Any) -> float | None:
 
 
 def _pack_power_kw(voltage: float, current: float) -> float:
-    """Return HV pack power in kW (negative while discharging)."""
-    return float(voltage) * float(current) / 1000.0
+    """Return HV pack power in kW matching REST drive_state.power.
+
+    Fleet Telemetry PackCurrent uses the opposite sign (positive while
+    charging). Negate so negative = charging/regen, positive = discharge.
+    """
+    return -float(voltage) * float(current) / 1000.0
 
 
 def _instant_consumption_wh_per_km(
@@ -845,5 +849,5 @@ def _instant_consumption_wh_per_km(
     if speed_mph < CONSUMPTION_MIN_SPEED_MPH:
         return None
     speed_kmh = float(speed_mph) * MPH_TO_KMH
-    # Negative pack power = discharge → positive Wh/km.
-    return (-float(power_kw) * 1000.0) / speed_kmh
+    # Positive pack power = discharge → positive Wh/km.
+    return (float(power_kw) * 1000.0) / speed_kmh

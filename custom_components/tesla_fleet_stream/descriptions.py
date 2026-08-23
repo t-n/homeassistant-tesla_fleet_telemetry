@@ -221,8 +221,8 @@ COMBINED_CHARGER_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
     suggested_display_precision=1,
 )
 
-# Derived from PackVoltage × PackCurrent (kW). Sign matches Fleet Telemetry /
-# REST drive_state.power: negative while discharging.
+# Derived from PackVoltage × PackCurrent (kW). Sign matches REST
+# drive_state.power: negative while charging/regen, positive while driving.
 DERIVED_PACK_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
     key="power",
     raw_field="",

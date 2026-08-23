@@ -16,7 +16,7 @@ When the required inputs arrive over MQTT, the integration also creates derived 
 
 | Sensor | Requires | Meaning |
 |--------|----------|---------|
-| Power (live) | `PackVoltage` + `PackCurrent` | HV pack kW (negative while discharging) |
+| Power (live) | `PackVoltage` + `PackCurrent` | HV pack kW (REST sign: negative charging/regen, positive driving) |
 | Consumption (live) | pack power + `VehicleSpeed` | Instant Wh/km while moving |
 | Consumption average (live) | `Odometer` + (`LifetimeEnergyUsed` or `EnergyRemaining`) | Wh/km for the current drive session |
 
