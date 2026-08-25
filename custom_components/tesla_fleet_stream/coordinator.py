@@ -41,6 +41,8 @@ from .const import (
     CONSUMPTION_AVERAGE_MIN_ENERGY_KWH,
     CONSUMPTION_INPUT_RAW_FIELDS,
     CONSUMPTION_MIN_SPEED_MPH,
+    CONSUMPTION_SESSION_STOP_GRACE_SECONDS,
+    CONSUMPTION_TRIP_RAW_FIELDS,
     DEFAULT_ATTACH_TO_EXISTING_DEVICE,
     DEFAULT_DEVICE_DOMAIN,
     DEFAULT_ENABLED_PLATFORMS,
@@ -50,6 +52,8 @@ from .const import (
     DERIVED_PACK_POWER_KEY,
     DOOR_FIELD,
     DOOR_SENSORS,
+    DRIVE_SESSION_GEARS,
+    GEAR_RAW_FIELDS,
     IGNORED_TELEMETRY_FIELDS,
     MPH_TO_KMH,
     is_valid_vin,
@@ -66,18 +70,20 @@ from .descriptions import (
     LOCATION_KEY,
     SENSOR_DESCRIPTIONS,
 )
-from .models import EntityTimestamps, VehicleTelemetryState
+from .models import DriveConsumptionSession, EntityTimestamps, VehicleTelemetryState
 from .parsers import (
     decode_payload,
     extract_bool,
     extract_charge_state,
     extract_connectivity,
     extract_doors,
+    extract_gear,
     extract_location,
     extract_numeric_scalar,
     extract_sample_time,
     extract_scalar,
     normalize_charge_state,
+    normalize_gear,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -373,6 +379,10 @@ class TeslaFleetStreamRuntime:
                 # the last known state so availability does not flicker.
                 if value is None and vehicle.sensors.get(description.key) is not None:
                     return
+            elif raw_field in GEAR_RAW_FIELDS:
+                value = normalize_gear(extract_gear(payload))
+                if value is None and vehicle.sensors.get(description.key) is not None:
+                    return
             elif description.state_class == SensorStateClass.MEASUREMENT:
                 value = extract_numeric_scalar(payload)
                 if value is None:
@@ -399,6 +409,8 @@ class TeslaFleetStreamRuntime:
                 self._update_combined_charger_power(vin)
             if raw_field in CONSUMPTION_INPUT_RAW_FIELDS:
                 self._update_derived_drive_sensors(vin)
+            if raw_field in CONSUMPTION_TRIP_RAW_FIELDS:
+                self._update_consumption_average(vin)
             return
 
         if raw_field == DOOR_FIELD:
@@ -443,6 +455,8 @@ class TeslaFleetStreamRuntime:
                 self.hass,
                 update_signal("binary_sensor", vin, description.key),
             )
+            if raw_field in CONSUMPTION_TRIP_RAW_FIELDS:
+                self._update_consumption_average(vin)
             return
 
         if raw_field == LOCATION_FIELD:
@@ -651,7 +665,7 @@ class TeslaFleetStreamRuntime:
 
     @callback
     def _update_instant_consumption(self, vin: str) -> None:
-        """Derive live Wh/km while moving; clear when stopped."""
+        """Derive live Wh/km while moving; 0 when parked/stopped."""
         vehicle = self._vehicles.get(vin)
         if vehicle is None:
             return
@@ -665,10 +679,6 @@ class TeslaFleetStreamRuntime:
 
         value = _instant_consumption_wh_per_km(power_kw, speed_mph)
         previous = vehicle.sensors.get(DERIVED_CONSUMPTION_KEY)
-        # Create the entity only after the first successful sample.
-        if value is None and previous is None:
-            return
-
         vehicle.sensors[DERIVED_CONSUMPTION_KEY] = value
         self._record_entity_update(
             vehicle,
@@ -685,23 +695,31 @@ class TeslaFleetStreamRuntime:
 
     @callback
     def _update_consumption_average(self, vin: str) -> None:
-        """Derive drive-session average Wh/km from energy and odometer."""
+        """Derive drive-session average Wh/km from energy and odometer.
+
+        The session spans a whole trip (Gear D/R/N, or seat+grace without Gear),
+        so traffic lights and queues do not reset the average.
+        """
         vehicle = self._vehicles.get(vin)
         if vehicle is None:
             return
 
+        now = dt_util.utcnow()
         speed_mph = vehicle.sensors.get("vehicle_speed")
         odometer = vehicle.sensors.get("odometer")
         lifetime = vehicle.sensors.get("lifetime_energy_used")
         remaining = vehicle.sensors.get("energy_remaining")
-        moving = isinstance(speed_mph, (int, float)) and speed_mph >= CONSUMPTION_MIN_SPEED_MPH
+        moving = (
+            isinstance(speed_mph, (int, float))
+            and speed_mph >= CONSUMPTION_MIN_SPEED_MPH
+        )
         session = vehicle.drive_consumption
 
-        if not moving:
-            session.active = False
-            session.start_odometer_miles = None
-            session.start_lifetime_energy_kwh = None
-            session.start_energy_remaining_kwh = None
+        if moving:
+            session.last_moving_at = now
+
+        if not _drive_session_open(vehicle, session, now):
+            self._end_drive_consumption_session(vin, vehicle)
             return
 
         if not isinstance(odometer, (int, float)):
@@ -720,6 +738,8 @@ class TeslaFleetStreamRuntime:
             session.start_energy_remaining_kwh = (
                 float(remaining) if has_remaining else None
             )
+            if moving:
+                session.last_moving_at = now
             return
 
         if session.start_odometer_miles is None:
@@ -749,6 +769,39 @@ class TeslaFleetStreamRuntime:
 
         value = (energy_kwh * 1000.0) / (distance_miles * MPH_TO_KMH)
         previous = vehicle.sensors.get(DERIVED_CONSUMPTION_AVERAGE_KEY)
+        vehicle.sensors[DERIVED_CONSUMPTION_AVERAGE_KEY] = value
+        self._record_entity_update(
+            vehicle,
+            DERIVED_CONSUMPTION_AVERAGE_KEY,
+            value,
+            previous,
+            None,
+        )
+        self._ensure_entity("sensor", vin, DERIVED_CONSUMPTION_AVERAGE_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("sensor", vin, DERIVED_CONSUMPTION_AVERAGE_KEY),
+        )
+
+    @callback
+    def _end_drive_consumption_session(
+        self, vin: str, vehicle: VehicleTelemetryState
+    ) -> None:
+        """Clear trip anchors and report 0 average when the trip ends."""
+        session = vehicle.drive_consumption
+        was_active = session.active
+        previous = vehicle.sensors.get(DERIVED_CONSUMPTION_AVERAGE_KEY)
+        session.active = False
+        session.start_odometer_miles = None
+        session.start_lifetime_energy_kwh = None
+        session.start_energy_remaining_kwh = None
+        session.last_moving_at = None
+
+        # Do not invent a 0 entity before the first trip has produced a sample.
+        if previous is None and not was_active:
+            return
+
+        value = 0.0
         vehicle.sensors[DERIVED_CONSUMPTION_AVERAGE_KEY] = value
         self._record_entity_update(
             vehicle,
@@ -811,6 +864,42 @@ def _values_equal(previous: Any, new: Any) -> bool:
     return previous == new
 
 
+def _drive_session_open(
+    vehicle: VehicleTelemetryState,
+    session: DriveConsumptionSession,
+    now: datetime,
+) -> bool:
+    """Return whether the average-consumption trip should stay open.
+
+    Prefer Gear (D/R/N vs P). Without Gear, keep the trip through brief stops
+    while the driver seat is occupied (or for a short grace after last motion).
+    """
+    gear = vehicle.sensors.get("gear")
+    if isinstance(gear, str):
+        if gear in DRIVE_SESSION_GEARS:
+            return True
+        if gear == "p":
+            return False
+
+    seat = vehicle.binary_sensors.get("driver_seat_occupied")
+    speed_mph = vehicle.sensors.get("vehicle_speed")
+    moving = (
+        isinstance(speed_mph, (int, float))
+        and speed_mph >= CONSUMPTION_MIN_SPEED_MPH
+    )
+
+    if seat is False:
+        return False
+    if moving:
+        return True
+    if not session.active:
+        return False
+    if session.last_moving_at is None:
+        return False
+    idle = (now - session.last_moving_at).total_seconds()
+    return idle < CONSUMPTION_SESSION_STOP_GRACE_SECONDS
+
+
 def _parse_timestamp_attribute(value: Any) -> datetime | None:
     """Parse a timestamp stored in Home Assistant entity attributes."""
     if isinstance(value, datetime):
@@ -842,12 +931,10 @@ def _pack_power_kw(voltage: float, current: float) -> float:
     return -float(voltage) * float(current) / 1000.0
 
 
-def _instant_consumption_wh_per_km(
-    power_kw: float, speed_mph: float
-) -> float | None:
-    """Return instantaneous Wh/km while moving; None when below speed floor."""
+def _instant_consumption_wh_per_km(power_kw: float, speed_mph: float) -> float:
+    """Return instantaneous Wh/km while moving; 0 when below speed floor."""
     if speed_mph < CONSUMPTION_MIN_SPEED_MPH:
-        return None
+        return 0.0
     speed_kmh = float(speed_mph) * MPH_TO_KMH
     # Positive pack power = discharge → positive Wh/km.
     return (float(power_kw) * 1000.0) / speed_kmh

@@ -17,8 +17,8 @@ When the required inputs arrive over MQTT, the integration also creates derived 
 | Sensor | Requires | Meaning |
 |--------|----------|---------|
 | Power (live) | `PackVoltage` + `PackCurrent` | HV pack kW (REST sign: negative charging/regen, positive driving) |
-| Consumption (live) | pack power + `VehicleSpeed` | Instant Wh/km while moving |
-| Consumption average (live) | `Odometer` + (`LifetimeEnergyUsed` or `EnergyRemaining`) | Wh/km for the current drive session |
+| Consumption (live) | pack power + `VehicleSpeed` | Instant Wh/km while moving; `0` when parked/stopped |
+| Consumption average (live) | `Odometer` + (`LifetimeEnergyUsed` or `EnergyRemaining`) | Wh/km for the current **trip** (open while `Gear` is D/R/N; falls back to driver-seat + brief stop grace); `0` when the trip ends |
 
 Derived entities are created lazily (not at VIN discovery) once their inputs have been seen.
 

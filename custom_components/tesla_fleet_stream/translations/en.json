@@ -109,6 +109,15 @@
       },
       "drive_state_consumption_average": {
         "name": "Consumption average (live)"
+      },
+      "drive_state_shift_state": {
+        "name": "Gear (live)",
+        "state": {
+          "p": "P",
+          "r": "R",
+          "n": "N",
+          "d": "D"
+        }
       }
     }
   }

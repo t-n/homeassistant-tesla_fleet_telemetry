@@ -49,6 +49,7 @@ DEFAULT_TELEMETRY_FIELDS = {
     "Locked": {"interval_seconds": 1, "resend_interval_seconds": 300},
     "DoorState": {"interval_seconds": 1, "resend_interval_seconds": 300},
     "DriverSeatOccupied": {"interval_seconds": 1, "resend_interval_seconds": 300},
+    "Gear": {"interval_seconds": 1, "resend_interval_seconds": 300},
     "ACChargingPower": {"interval_seconds": 1},
     "IdealBatteryRange": {"interval_seconds": 10, "resend_interval_seconds": 300},
     "ChargeRateMilePerHour": {"interval_seconds": 1},

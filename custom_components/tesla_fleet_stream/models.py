@@ -23,6 +23,8 @@ class DriveConsumptionSession:
     start_odometer_miles: float | None = None
     start_lifetime_energy_kwh: float | None = None
     start_energy_remaining_kwh: float | None = None
+    # Used when Gear is unavailable: keep the trip open through brief stops.
+    last_moving_at: datetime | None = None
 
 
 @dataclass

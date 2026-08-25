@@ -9,7 +9,12 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 from homeassistant.util.dt import parse_datetime
 
-from .const import CHARGE_STATES, CHARGE_STATE_ENUM_OPTIONS
+from .const import (
+    CHARGE_STATES,
+    CHARGE_STATE_ENUM_OPTIONS,
+    GEAR_ENUM_OPTIONS,
+    GEAR_STATES,
+)
 
 INVALID_SENTINEL_KEYS = ("invalid", "Invalid")
 
@@ -97,6 +102,25 @@ CHARGE_STATE_ENUM_BY_NUMBER = {
     5: "complete",
     6: "stopped",
 }
+
+# Proto ShiftState without prefer_typed; typed values use ShiftStateP etc.
+GEAR_ENUM_BY_NUMBER = {
+    2: "p",
+    3: "r",
+    4: "n",
+    5: "d",
+}
+
+GEAR_PAYLOAD_KEYS = (
+    "shift_state_value",
+    "ShiftStateValue",
+    "value",
+    "Value",
+    "state",
+    "State",
+    "signal",
+    "Signal",
+)
 
 
 TIMESTAMP_PAYLOAD_KEYS = (
@@ -203,6 +227,54 @@ def normalize_charge_state(value: Any) -> str | None:
 
         lowered = stripped.lower()
         if lowered in CHARGE_STATE_ENUM_OPTIONS:
+            return lowered
+
+    return None
+
+
+def extract_gear(payload: Any) -> Any | None:
+    """Extract a Gear / ShiftState value from a Tesla telemetry payload."""
+    if isinstance(payload, dict):
+        if any(payload.get(key) is True for key in INVALID_SENTINEL_KEYS):
+            return None
+
+        for key in GEAR_PAYLOAD_KEYS:
+            value = payload.get(key)
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                return value
+
+        return extract_scalar(payload)
+
+    if isinstance(payload, (str, int, float, bool)) or payload is None:
+        return payload
+
+    return None
+
+
+def normalize_gear(value: Any) -> str | None:
+    """Normalize Tesla Gear / ShiftState values to p/r/n/d."""
+    if value is None or isinstance(value, bool):
+        return None
+
+    if isinstance(value, (int, float)):
+        return GEAR_ENUM_BY_NUMBER.get(int(value))
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        for prefix in ("ShiftState", "Gear"):
+            if stripped.startswith(prefix):
+                stripped = stripped[len(prefix) :]
+                break
+
+        if not stripped:
+            return None
+
+        mapped = GEAR_STATES.get(stripped.upper())
+        if mapped is not None:
+            return mapped
+
+        lowered = stripped.lower()
+        if lowered in GEAR_ENUM_OPTIONS:
             return lowered
 
     return None

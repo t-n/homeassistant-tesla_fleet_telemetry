@@ -109,6 +109,15 @@
       },
       "drive_state_consumption_average": {
         "name": "Förbrukning medel (live)"
+      },
+      "drive_state_shift_state": {
+        "name": "Växel (live)",
+        "state": {
+          "p": "P",
+          "r": "R",
+          "n": "N",
+          "d": "D"
+        }
       }
     }
   }

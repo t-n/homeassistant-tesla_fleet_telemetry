@@ -24,7 +24,12 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import CHARGE_STATE_ENUM_OPTIONS, DOOR_FIELD, DOOR_SENSORS
+from .const import (
+    CHARGE_STATE_ENUM_OPTIONS,
+    DOOR_FIELD,
+    DOOR_SENSORS,
+    GEAR_ENUM_OPTIONS,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -126,6 +131,14 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         translation_key="charge_state_charging_state",
         device_class=SensorDeviceClass.ENUM,
         options=CHARGE_STATE_ENUM_OPTIONS,
+    ),
+    "Gear": TeslaFleetStreamSensorDescription(
+        key="gear",
+        raw_field="Gear",
+        translation_key="drive_state_shift_state",
+        device_class=SensorDeviceClass.ENUM,
+        options=GEAR_ENUM_OPTIONS,
+        # Official tesla_fleet exposes shift_state as a primary drive sensor.
     ),
     "ACChargingPower": TeslaFleetStreamSensorDescription(
         key="ac_charging_power",
@@ -247,7 +260,8 @@ DERIVED_CONSUMPTION_DESCRIPTION = TeslaFleetStreamSensorDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
 )
 
-# Drive-session average Wh/km from Δenergy / Δodometer while moving.
+# Drive-session average Wh/km from Δenergy / Δodometer for the current trip
+# (Gear D/R/N, with seat/grace fallback when Gear is not streaming).
 DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION = TeslaFleetStreamSensorDescription(
     key="consumption_average",
     raw_field="",

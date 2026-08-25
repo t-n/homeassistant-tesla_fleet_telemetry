@@ -58,8 +58,20 @@ CHARGE_STATES = {
 
 CHARGE_STATE_ENUM_OPTIONS = list(CHARGE_STATES.values())
 
+# Fleet Telemetry Gear / ShiftState (prefer_typed may send ShiftStateD, else "D").
+GEAR_STATES = {
+    "P": "p",
+    "R": "r",
+    "N": "n",
+    "D": "d",
+}
+GEAR_ENUM_OPTIONS = list(GEAR_STATES.values())
+# Stay in the average-consumption trip while in drive/reverse/neutral.
+DRIVE_SESSION_GEARS = frozenset({"d", "r", "n"})
+
 # ChargeState may still arrive via MQTT but is not exposed as a HA entity.
 CHARGE_STATE_RAW_FIELDS = frozenset({"DetailedChargeState"})
+GEAR_RAW_FIELDS = frozenset({"Gear"})
 CHARGING_POWER_RAW_FIELDS = frozenset({"ACChargingPower", "DCChargingPower"})
 IGNORED_TELEMETRY_FIELDS = frozenset({"ChargeState"})
 COMBINED_CHARGER_POWER_KEY = "charger_power"
@@ -69,6 +81,8 @@ COMBINED_CHARGER_POWER_KEY = "charger_power"
 CONSUMPTION_INPUT_RAW_FIELDS = frozenset(
     {"PackVoltage", "PackCurrent", "VehicleSpeed", "Odometer", "EnergyRemaining", "LifetimeEnergyUsed"}
 )
+# Trip open/close for session-average Wh/km (not instant consumption).
+CONSUMPTION_TRIP_RAW_FIELDS = frozenset({"Gear", "DriverSeatOccupied"})
 DERIVED_PACK_POWER_KEY = "power"
 DERIVED_CONSUMPTION_KEY = "consumption"
 DERIVED_CONSUMPTION_AVERAGE_KEY = "consumption_average"
@@ -87,6 +101,8 @@ MPH_TO_KMH = 1.609344
 # Minimum drive-session deltas before publishing an average (reduces startup noise).
 CONSUMPTION_AVERAGE_MIN_DISTANCE_MILES = 0.2
 CONSUMPTION_AVERAGE_MIN_ENERGY_KWH = 0.05
+# Without Gear telemetry: keep the trip open through brief stops (lights/queues).
+CONSUMPTION_SESSION_STOP_GRACE_SECONDS = 180.0
 
 # DoorState is a single Tesla telemetry field whose value is a composite Doors
 # message (6 booleans). It is fanned out into one binary sensor per door. Maps
