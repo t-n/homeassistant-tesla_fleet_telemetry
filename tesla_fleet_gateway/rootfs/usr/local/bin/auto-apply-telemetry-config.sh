@@ -119,6 +119,14 @@ telemetry_response_apply_signature() {
     jq -r '(.response.config.fields // {}) | to_entries | sort_by(.key) | map(.key + ":" + ((.value.resend_interval_seconds // 0) | tostring)) | join(",")'
 }
 
+telemetry_alert_types_signature() {
+    jq -r '(.config.alert_types // []) | sort | join(",")' "$1"
+}
+
+telemetry_response_alert_types_signature() {
+    jq -r '(.response.config.alert_types // []) | sort | join(",")'
+}
+
 request_file_digest() {
     local request_file="$1"
 
@@ -137,13 +145,14 @@ telemetry_already_synced() {
     # signed re-apply in the steady state. Requires TESLA_AUTH_TOKEN to be set.
     local request_file="$1"
     local base="${TESLA_OAUTH_AUDIENCE:-}"
-    local req_host req_port req_apply vin cfg synced chost cport capply
+    local req_host req_port req_apply req_alerts vin cfg synced chost cport capply calerts
 
     [ -n "$base" ] || return 1
     base="${base%/}"
     req_host="$(jq -r '.config.hostname' "$request_file")"
     req_port="$(jq -r '.config.port | tostring' "$request_file")"
     req_apply="$(telemetry_field_apply_signature "$request_file")"
+    req_alerts="$(telemetry_alert_types_signature "$request_file")"
 
     while IFS= read -r vin; do
         [ -n "$vin" ] || continue
@@ -154,8 +163,10 @@ telemetry_already_synced() {
         chost="$(echo "$cfg" | jq -r '.response.config.hostname // ""')"
         cport="$(echo "$cfg" | jq -r '.response.config.port // "" | tostring')"
         capply="$(echo "$cfg" | telemetry_response_apply_signature)"
+        calerts="$(echo "$cfg" | telemetry_response_alert_types_signature)"
         if [ "$synced" != "true" ] || [ "$chost" != "$req_host" ] \
-            || [ "$cport" != "$req_port" ] || [ "$capply" != "$req_apply" ]; then
+            || [ "$cport" != "$req_port" ] || [ "$capply" != "$req_apply" ] \
+            || [ "$calerts" != "$req_alerts" ]; then
             return 1
         fi
     done < <(jq -r '.vins[]' "$request_file")

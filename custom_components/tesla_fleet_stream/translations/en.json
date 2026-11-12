@@ -31,6 +31,33 @@
       },
       "vehicle_state_rt": {
         "name": "Trunk (live)"
+      },
+      "vehicle_state_tpms_soft_warning_fl": {
+        "name": "Front left tire pressure soft warning (live)"
+      },
+      "vehicle_state_tpms_soft_warning_fr": {
+        "name": "Front right tire pressure soft warning (live)"
+      },
+      "vehicle_state_tpms_soft_warning_rl": {
+        "name": "Rear left tire pressure soft warning (live)"
+      },
+      "vehicle_state_tpms_soft_warning_rr": {
+        "name": "Rear right tire pressure soft warning (live)"
+      },
+      "vehicle_state_tpms_hard_warning_fl": {
+        "name": "Front left tire pressure hard warning (live)"
+      },
+      "vehicle_state_tpms_hard_warning_fr": {
+        "name": "Front right tire pressure hard warning (live)"
+      },
+      "vehicle_state_tpms_hard_warning_rl": {
+        "name": "Rear left tire pressure hard warning (live)"
+      },
+      "vehicle_state_tpms_hard_warning_rr": {
+        "name": "Rear right tire pressure hard warning (live)"
+      },
+      "vehicle_state_washer_fluid_low": {
+        "name": "Low washer fluid (live)"
       }
     },
     "device_tracker": {
@@ -118,6 +145,27 @@
           "n": "N",
           "d": "D"
         }
+      },
+      "vehicle_state_tpms_pressure_fl": {
+        "name": "Front left tire pressure (live)"
+      },
+      "vehicle_state_tpms_pressure_fr": {
+        "name": "Front right tire pressure (live)"
+      },
+      "vehicle_state_tpms_pressure_rl": {
+        "name": "Rear left tire pressure (live)"
+      },
+      "vehicle_state_tpms_pressure_rr": {
+        "name": "Rear right tire pressure (live)"
+      },
+      "vehicle_state_tpms_rcp_front_value": {
+        "name": "Recommended cold front tire pressure (live)"
+      },
+      "vehicle_state_tpms_rcp_rear_value": {
+        "name": "Recommended cold rear tire pressure (live)"
+      },
+      "active_alerts": {
+        "name": "Active alerts (live)"
       }
     }
   }

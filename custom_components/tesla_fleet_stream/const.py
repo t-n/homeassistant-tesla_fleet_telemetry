@@ -118,6 +118,9 @@ DOOR_SENSORS = {
     "TrunkRear": "vehicle_state_rt",
 }
 
+ACTIVE_ALERTS_KEY = "active_alerts"
+WASHER_FLUID_LOW_KEY = "washer_fluid_low"
+
 AUTHORIZE_URL = "https://auth.tesla.com/oauth2/v3/authorize"
 TOKEN_URL = "https://auth.tesla.com/oauth2/v3/token"
 SCOPES = [

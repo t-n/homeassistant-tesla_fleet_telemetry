@@ -59,3 +59,10 @@ is quiet (e.g. parked). On older firmware, `include_fields` is ignored — keep 
 Defaults use **10 s** for those parents. For higher-resolution live Wh/km, lower the
 parent interval (and keep companions via `include_fields` or the same interval).
 Do not lower only the pack fields on older firmware.
+
+## TPMS and vehicle alerts
+
+- **TPMS (`V` stream):** `TpmsPressureFl/Fr/Rl/Rr` (bar), `TpmsRcpFrontValue/RearValue` (recommended cold pressure, bar), and `TpmsSoftWarningFl/Fr/Rl/Rr` / `TpmsHardWarningFl/Fr/Rl/Rr` (problem binary sensors) are enabled in the add-on defaults and mapped by the integration. Note that TPMS sensors inside the wheels only broadcast while driving or shortly after motion.
+- **Vehicle alerts (`alerts` stream):** The add-on configures `"alert_types": ["service", "customer", "service-fix"]` in `fleet_telemetry_config.json` and publishes vehicle alerts to `<topic_base>/<VIN>/alerts/<alert_name>/current` and `/history`. The integration subscribes to `<topic_base>/+/alerts/#` and exposes:
+  - **Low washer fluid (live)** (`binary_sensor`, problem) — turns `on` when a washer fluid alert (e.g. `VCFRONT_a185_washerFluidLow`) is active and `off` when cleared.
+  - **Active alerts (live)** (`sensor`, diagnostic) — count of currently active vehicle alerts, with `active_alerts`, `last_alert`, `last_alert_started_at`, `last_alert_ended_at`, and `last_alert_audiences` attributes.

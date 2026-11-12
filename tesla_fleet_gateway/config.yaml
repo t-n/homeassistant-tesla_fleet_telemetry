@@ -1,6 +1,6 @@
 name: "Tesla Fleet Gateway"
 description: "Single-host Tesla PEM and Fleet Telemetry gateway"
-version: "0.6.5"
+version: "0.6.6"
 slug: "tesla_fleet_gateway"
 url: "https://developer.tesla.com/docs/fleet-api/fleet-telemetry"
 arch:
@@ -102,6 +102,48 @@ options:
     - name: "LifetimeEnergyUsed"
       interval_seconds: 10
       resend_interval_seconds: 300
+    - name: "TpmsPressureFl"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsPressureFr"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsPressureRl"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsPressureRr"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsRcpFrontValue"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsRcpRearValue"
+      interval_seconds: 60
+      resend_interval_seconds: 300
+    - name: "TpmsSoftWarningFl"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsSoftWarningFr"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsSoftWarningRl"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsSoftWarningRr"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsHardWarningFl"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsHardWarningFr"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsHardWarningRl"
+      interval_seconds: 10
+      resend_interval_seconds: 300
+    - name: "TpmsHardWarningRr"
+      interval_seconds: 10
+      resend_interval_seconds: 300
 schema:
   domain: str
   mqtt:
@@ -121,9 +163,9 @@ schema:
   vin_allowlist:
     - str
   telemetry_fields:
-    - name: list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|Gear|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed)
+    - name: list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|Gear|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed|TpmsPressureFl|TpmsPressureFr|TpmsPressureRl|TpmsPressureRr|TpmsRcpFrontValue|TpmsRcpRearValue|TpmsSoftWarningFl|TpmsSoftWarningFr|TpmsSoftWarningRl|TpmsSoftWarningRr|TpmsHardWarningFl|TpmsHardWarningFr|TpmsHardWarningRl|TpmsHardWarningRr)
       interval_seconds: int(1,)?
       resend_interval_seconds: int(1,)?
       # Optional — existing installs omit this; required without ? breaks start.
       include_fields:
-        - list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|Gear|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed)?
+        - list(Soc|RatedRange|EstBatteryRange|IdealBatteryRange|ChargeRateMilePerHour|VehicleSpeed|Location|ChargeAmps|InsideTemp|OutsideTemp|DetailedChargeState|ChargeState|ACChargingPower|DCChargingPower|TimeToFullCharge|Locked|DoorState|DriverSeatOccupied|Gear|EnergyRemaining|Odometer|PackVoltage|PackCurrent|LifetimeEnergyUsed|TpmsPressureFl|TpmsPressureFr|TpmsPressureRl|TpmsPressureRr|TpmsRcpFrontValue|TpmsRcpRearValue|TpmsSoftWarningFl|TpmsSoftWarningFr|TpmsSoftWarningRl|TpmsSoftWarningRr|TpmsHardWarningFl|TpmsHardWarningFr|TpmsHardWarningRl|TpmsHardWarningRr)?

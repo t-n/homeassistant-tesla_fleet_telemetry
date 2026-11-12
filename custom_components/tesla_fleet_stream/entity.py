@@ -57,14 +57,16 @@ class TeslaFleetStreamEntity(RestoreEntity, Entity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Expose telemetry receipt timestamps on the entity."""
+        """Expose telemetry receipt timestamps and entity-specific attributes."""
+        attrs: dict[str, Any] = {}
         timestamps = self._runtime.get_entity_timestamps(self._vin, self._key)
-        if timestamps is None:
-            return None
-        return {
-            "last_updated": timestamps.last_updated.isoformat(),
-            "last_changed": timestamps.last_changed.isoformat(),
-        }
+        if timestamps is not None:
+            attrs["last_updated"] = timestamps.last_updated.isoformat()
+            attrs["last_changed"] = timestamps.last_changed.isoformat()
+        extra = self._runtime.get_entity_extra_attributes(self._vin, self._key)
+        if extra:
+            attrs.update(extra)
+        return attrs or None
 
     @callback
     def _restore_from_last_state(self, state) -> None:
