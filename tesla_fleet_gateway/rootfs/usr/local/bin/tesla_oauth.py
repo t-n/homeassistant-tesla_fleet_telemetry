@@ -62,7 +62,22 @@ DEFAULT_TELEMETRY_FIELDS = {
     "PackVoltage": {"interval_seconds": 10},
     "PackCurrent": {"interval_seconds": 10},
     "LifetimeEnergyUsed": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsPressureFl": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsPressureFr": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsPressureRl": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsPressureRr": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsRcpFrontValue": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsRcpRearValue": {"interval_seconds": 60, "resend_interval_seconds": 300},
+    "TpmsSoftWarningFl": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsSoftWarningFr": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsSoftWarningRl": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsSoftWarningRr": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsHardWarningFl": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsHardWarningFr": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsHardWarningRl": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsHardWarningRr": {"interval_seconds": 10, "resend_interval_seconds": 300},
 }
+DEFAULT_TELEMETRY_ALERT_TYPES = ["service", "customer", "service-fix"]
 
 
 class OAuthError(RuntimeError):
@@ -905,7 +920,12 @@ def prepare_telemetry_config(settings):
             existing_fields = config.get("fields")
             if not isinstance(existing_fields, dict):
                 existing_fields = {}
-            if existing_fields == desired_fields and existing.get("vins") == vins:
+            existing_alert_types = config.get("alert_types")
+            if (
+                existing_fields == desired_fields
+                and existing_alert_types == DEFAULT_TELEMETRY_ALERT_TYPES
+                and existing.get("vins") == vins
+            ):
                 log_success(
                     "Fleet Telemetry request file already matches add-on options",
                     f"Using {request_file} with {len(vins)} VIN(s) and "
@@ -913,9 +933,10 @@ def prepare_telemetry_config(settings):
                 )
                 return 0
 
-            # Any option change (intervals, resend, field set, or VIN allowlist)
-            # is written on startup.
+            # Any option change (intervals, resend, field set, alert_types, or
+            # VIN allowlist) is written on startup.
             config["fields"] = desired_fields
+            config["alert_types"] = list(DEFAULT_TELEMETRY_ALERT_TYPES)
             payload = {"vins": vins, "config": config}
             try:
                 write_json_file(request_file, payload)
@@ -946,6 +967,7 @@ def prepare_telemetry_config(settings):
                 "port": endpoint_port,
                 "ca": ca,
                 "fields": dict(desired_fields),
+                "alert_types": list(DEFAULT_TELEMETRY_ALERT_TYPES),
             },
         }
         write_json_file(request_file, payload)

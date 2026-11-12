@@ -19,16 +19,19 @@ from homeassistant.const import (
     UnitOfEnergyDistance,
     UnitOfLength,
     UnitOfPower,
+    UnitOfPressure,
     UnitOfSpeed,
     UnitOfTemperature,
 )
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import (
+    ACTIVE_ALERTS_KEY,
     CHARGE_STATE_ENUM_OPTIONS,
     DOOR_FIELD,
     DOOR_SENSORS,
     GEAR_ENUM_OPTIONS,
+    WASHER_FLUID_LOW_KEY,
 )
 
 
@@ -222,6 +225,68 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         # Lifetime accumulator — same section as official odometer.
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    "TpmsPressureFl": TeslaFleetStreamSensorDescription(
+        key="tpms_pressure_fl",
+        raw_field="TpmsPressureFl",
+        translation_key="vehicle_state_tpms_pressure_fl",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    "TpmsPressureFr": TeslaFleetStreamSensorDescription(
+        key="tpms_pressure_fr",
+        raw_field="TpmsPressureFr",
+        translation_key="vehicle_state_tpms_pressure_fr",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    "TpmsPressureRl": TeslaFleetStreamSensorDescription(
+        key="tpms_pressure_rl",
+        raw_field="TpmsPressureRl",
+        translation_key="vehicle_state_tpms_pressure_rl",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    "TpmsPressureRr": TeslaFleetStreamSensorDescription(
+        key="tpms_pressure_rr",
+        raw_field="TpmsPressureRr",
+        translation_key="vehicle_state_tpms_pressure_rr",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    "TpmsRcpFrontValue": TeslaFleetStreamSensorDescription(
+        key="tpms_rcp_front_value",
+        raw_field="TpmsRcpFrontValue",
+        translation_key="vehicle_state_tpms_rcp_front_value",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsRcpRearValue": TeslaFleetStreamSensorDescription(
+        key="tpms_rcp_rear_value",
+        raw_field="TpmsRcpRearValue",
+        translation_key="vehicle_state_tpms_rcp_rear_value",
+        icon="mdi:car-tire-alert",
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        device_class=SensorDeviceClass.PRESSURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 }
 
 COMBINED_CHARGER_POWER_DESCRIPTION = TeslaFleetStreamSensorDescription(
@@ -273,6 +338,16 @@ DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION = TeslaFleetStreamSensorDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
 )
 
+ACTIVE_ALERTS_DESCRIPTION = TeslaFleetStreamSensorDescription(
+    key=ACTIVE_ALERTS_KEY,
+    raw_field="alerts",
+    translation_key="active_alerts",
+    icon="mdi:alert-outline",
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
 SENSOR_DESCRIPTIONS_BY_KEY: dict[str, TeslaFleetStreamSensorDescription] = {
     description.key: description for description in SENSOR_DESCRIPTIONS.values()
 }
@@ -287,6 +362,9 @@ SENSOR_DESCRIPTIONS_BY_KEY[DERIVED_CONSUMPTION_DESCRIPTION.key] = (
 )
 SENSOR_DESCRIPTIONS_BY_KEY[DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION.key] = (
     DERIVED_CONSUMPTION_AVERAGE_DESCRIPTION
+)
+SENSOR_DESCRIPTIONS_BY_KEY[ACTIVE_ALERTS_DESCRIPTION.key] = (
+    ACTIVE_ALERTS_DESCRIPTION
 )
 
 
@@ -309,6 +387,73 @@ BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescription] =
         raw_field="connectivity",
         translation_key="state",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    ),
+    "TpmsSoftWarningFl": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_soft_warning_fl",
+        raw_field="TpmsSoftWarningFl",
+        translation_key="vehicle_state_tpms_soft_warning_fl",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsSoftWarningFr": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_soft_warning_fr",
+        raw_field="TpmsSoftWarningFr",
+        translation_key="vehicle_state_tpms_soft_warning_fr",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsSoftWarningRl": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_soft_warning_rl",
+        raw_field="TpmsSoftWarningRl",
+        translation_key="vehicle_state_tpms_soft_warning_rl",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsSoftWarningRr": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_soft_warning_rr",
+        raw_field="TpmsSoftWarningRr",
+        translation_key="vehicle_state_tpms_soft_warning_rr",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsHardWarningFl": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_hard_warning_fl",
+        raw_field="TpmsHardWarningFl",
+        translation_key="vehicle_state_tpms_hard_warning_fl",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsHardWarningFr": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_hard_warning_fr",
+        raw_field="TpmsHardWarningFr",
+        translation_key="vehicle_state_tpms_hard_warning_fr",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsHardWarningRl": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_hard_warning_rl",
+        raw_field="TpmsHardWarningRl",
+        translation_key="vehicle_state_tpms_hard_warning_rl",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "TpmsHardWarningRr": TeslaFleetStreamBinarySensorDescription(
+        key="tpms_hard_warning_rr",
+        raw_field="TpmsHardWarningRr",
+        translation_key="vehicle_state_tpms_hard_warning_rr",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+}
+
+ALERT_BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescription] = {
+    WASHER_FLUID_LOW_KEY: TeslaFleetStreamBinarySensorDescription(
+        key=WASHER_FLUID_LOW_KEY,
+        raw_field="alerts",
+        translation_key="vehicle_state_washer_fluid_low",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:wiper-wash-alert",
     ),
 }
 

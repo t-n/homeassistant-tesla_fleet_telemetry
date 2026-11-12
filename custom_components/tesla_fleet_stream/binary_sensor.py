@@ -10,7 +10,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import new_entity_signal
 from .coordinator import TeslaFleetStreamRuntime
-from .descriptions import BINARY_SENSOR_DESCRIPTIONS, DOOR_BINARY_SENSOR_DESCRIPTIONS
+from .descriptions import (
+    ALERT_BINARY_SENSOR_DESCRIPTIONS,
+    BINARY_SENSOR_DESCRIPTIONS,
+    DOOR_BINARY_SENSOR_DESCRIPTIONS,
+)
 from .entity import TeslaFleetStreamEntity
 
 
@@ -30,6 +34,7 @@ async def async_setup_entry(
         for description in (
             *BINARY_SENSOR_DESCRIPTIONS.values(),
             *DOOR_BINARY_SENSOR_DESCRIPTIONS.values(),
+            *ALERT_BINARY_SENSOR_DESCRIPTIONS.values(),
         )
     }
 
