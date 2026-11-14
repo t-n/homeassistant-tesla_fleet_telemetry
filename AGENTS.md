@@ -135,17 +135,29 @@ Stream entities should match official **`tesla_fleet`** naming where an equivale
 - Every key in `en.json` must exist in `sv.json` (and vice versa).
 - Do not rename existing entities to diverge from `tesla_fleet` without a deliberate breaking-change reason.
 
+### Validate the Tesla field name first
+
+Tesla rejects the **entire** `fleet_telemetry_config` with HTTP 400 `Unknown field <Name>` if any configured name is not a `Field` enum member. The add-on does **not** retry 4xx; logs show `⚠️ ACTION REQUIRED` with the Tesla error.
+
+Before adding a name to `config.yaml` / `tesla_oauth.py`:
+
+1. Confirm the exact PascalCase spelling in Tesla’s [`vehicle_data.proto` `Field` enum](https://github.com/teslamotors/fleet-telemetry/blob/main/protos/vehicle_data.proto).
+2. Check the value type (scalar, bool, location, doors, tire location, …). Composite types need fan-out parsers — do **not** invent per-corner names Tesla does not publish (e.g. use `TpmsSoftWarnings` / `TpmsHardWarnings`, not `TpmsSoftWarningFl`).
+3. After deploy: expect either a single apply success line or an immediate `Unknown field …` (no five-attempt retry). Confirm MQTT `<topic_base>/<VIN>/v/<FieldName>` before expecting HA entities.
+4. **Alerts** (separate from `fields`): configure `alert_types` audiences (`customer` / `service` / `service-fix`). Live alert state comes from `<topic_base>/<VIN>/alerts/<alert_name>/current` only — `/history` is not live state.
+
 ### Files to touch for a new field / entity
 
 | Step | Where | What |
 |------|-------|------|
+| 0 | Tesla `vehicle_data.proto` | Confirm `Field` enum name + value shape (required) |
 | 1 | `descriptions.py` | Sensor / binary_sensor / device_tracker description |
 | 2 | `translations/en.json` + `sv.json` | Names (+ state enums if needed) with ` (live)` |
 | 3 | `tesla_fleet_gateway/config.yaml` | `telemetry_fields` default + schema enum |
 | 4 | `tesla_oauth.py` | `SUPPORTED_TELEMETRY_FIELDS` / `DEFAULT_TELEMETRY_FIELDS` |
 | 5 | Versions | Bump add-on `config.yaml` and/or integration `manifest.json`; update changelog / commit message |
 
-Composite Tesla fields (e.g. `Location`, `DoorState`) are special-cased in the integration coordinator/parsers; one MQTT field may fan out to multiple entities.
+Composite Tesla fields (e.g. `Location`, `DoorState`, `TpmsSoftWarnings`) are special-cased in the integration coordinator/parsers; one MQTT field may fan out to multiple entities.
 
 ## Working rules
 

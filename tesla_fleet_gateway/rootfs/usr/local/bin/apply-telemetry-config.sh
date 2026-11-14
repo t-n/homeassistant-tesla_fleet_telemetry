@@ -40,6 +40,7 @@ PROXY_PORT="${TESLA_HTTP_PROXY_PORT:-4443}"
 PROXY_URL="${TESLA_HTTP_PROXY_URL:-https://${PROXY_HOST}:${PROXY_PORT}}"
 CA_FILE="${TESLA_HTTP_PROXY_CA_FILE:-/ssl/fullchain.pem}"
 RESPONSE_FILE="$(mktemp)"
+HTTP_CODE_FILE="$(mktemp)"
 CURL_RESOLVE_ARGS=()
 
 if [ "${TESLA_HTTP_PROXY_RESOLVE_LOCAL:-true}" = "true" ]; then
@@ -73,35 +74,86 @@ warn_next_step() {
 }
 
 cleanup() {
-    rm -f "$RESPONSE_FILE"
+    rm -f "$RESPONSE_FILE" "$HTTP_CODE_FILE"
 }
 
 trap cleanup EXIT
 
-if ! curl --fail --silent --show-error \
+# Capture body and HTTP status separately. Do not use --fail: a 4xx body (e.g.
+# Unknown field) is the diagnosis, and permanent client errors must not look
+# like a transient curl failure to the retry loop.
+http_code="000"
+curl_ok=true
+if ! curl --silent --show-error \
     --cacert "$CA_FILE" \
     "${CURL_RESOLVE_ARGS[@]}" \
     --header "Authorization: Bearer ${TESLA_AUTH_TOKEN}" \
     --header "Content-Type: application/json" \
     --data @"$REQUEST_FILE" \
     --output "$RESPONSE_FILE" \
-    "${PROXY_URL}/api/1/vehicles/fleet_telemetry_config"; then
-    if [ -s "$RESPONSE_FILE" ]; then
+    --write-out "%{http_code}" \
+    "${PROXY_URL}/api/1/vehicles/fleet_telemetry_config" \
+    > "$HTTP_CODE_FILE"; then
+    curl_ok=false
+fi
+
+http_code="$(tr -d '[:space:]' < "$HTTP_CODE_FILE")"
+if [ -z "$http_code" ]; then
+    http_code="000"
+fi
+
+tesla_error=""
+if [ -s "$RESPONSE_FILE" ] && jq -e . "$RESPONSE_FILE" >/dev/null 2>&1; then
+    tesla_error="$(jq -r '.error // empty' "$RESPONSE_FILE")"
+fi
+
+if [ "$curl_ok" = "true" ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+    cat "$RESPONSE_FILE"
+    exit 0
+fi
+
+# HTTP 4xx from Tesla/proxy: permanent for this request body. Exit 3 so the
+# auto-apply retry loop does not sleep/retry.
+if [ "$http_code" -ge 400 ] && [ "$http_code" -lt 500 ]; then
+    if printf '%s' "$tesla_error" | grep -qiE '^Unknown field[[:space:]]'; then
         warn_next_step \
-            "Tesla Fleet Telemetry config request failed" \
-            "Verify the vehicle is paired, the token has telemetry scopes, and Tesla can reach the Tesla endpoint configured in the request JSON" \
-            "Check especially: hostname, Tesla endpoint port 443, router forwarding to the gateway listener, TLS certificate chain, and the telemetry path" \
+            "Tesla rejected the Fleet Telemetry config: ${tesla_error}" \
+            "Confirm every telemetry_fields name exists as a Field enum member in Tesla fleet-telemetry vehicle_data.proto (exact PascalCase)" \
+            "One unknown field rejects the entire config; remove or rename it in add-on Telemetry fields, config.yaml schema, and tesla_oauth.py SUPPORTED_TELEMETRY_FIELDS" \
+            "Composite values (DoorState, TpmsSoftWarnings, TpmsHardWarnings) use one proto field name — do not invent per-corner field names" \
+            "HTTP ${http_code}; Tesla response follows"
+    else
+        problem="Tesla Fleet Telemetry config request failed (HTTP ${http_code})"
+        if [ -n "$tesla_error" ]; then
+            problem="${problem}: ${tesla_error}"
+        fi
+        warn_next_step \
+            "$problem" \
+            "Verify the vehicle is paired, the token has telemetry scopes, and the request JSON field names / alert_types are valid" \
+            "HTTP 4xx is not retried; fix the request and restart the add-on (or force re-apply)" \
             "Tesla/vehicle-command response follows"
+    fi
+    if [ -s "$RESPONSE_FILE" ]; then
         while IFS= read -r line; do
             bashio::log.warning "$line"
         done < "$RESPONSE_FILE"
-    else
-        warn_next_step \
-            "Tesla Fleet Telemetry config request failed" \
-            "Verify the vehicle is paired, the token has telemetry scopes, and Tesla can reach the Tesla endpoint configured in the request JSON" \
-            "Check especially: hostname, Tesla endpoint port 443, router forwarding to the gateway listener, TLS certificate chain, and the telemetry path"
     fi
-    exit 1
+    exit 3
 fi
 
-cat "$RESPONSE_FILE"
+if [ -s "$RESPONSE_FILE" ]; then
+    warn_next_step \
+        "Tesla Fleet Telemetry config request failed (HTTP ${http_code})" \
+        "Verify the vehicle is paired, the token has telemetry scopes, and Tesla can reach the Tesla endpoint configured in the request JSON" \
+        "Check especially: hostname, Tesla endpoint port 443, router forwarding to the gateway listener, TLS certificate chain, and the telemetry path" \
+        "Tesla/vehicle-command response follows"
+    while IFS= read -r line; do
+        bashio::log.warning "$line"
+    done < "$RESPONSE_FILE"
+else
+    warn_next_step \
+        "Tesla Fleet Telemetry config request failed (HTTP ${http_code})" \
+        "Verify the vehicle is paired, the token has telemetry scopes, and Tesla can reach the Tesla endpoint configured in the request JSON" \
+        "Check especially: hostname, Tesla endpoint port 443, router forwarding to the gateway listener, TLS certificate chain, and the telemetry path"
+fi
+exit 1
