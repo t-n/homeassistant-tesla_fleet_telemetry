@@ -66,16 +66,8 @@ DEFAULT_TELEMETRY_FIELDS = {
     "TpmsPressureFr": {"interval_seconds": 60, "resend_interval_seconds": 300},
     "TpmsPressureRl": {"interval_seconds": 60, "resend_interval_seconds": 300},
     "TpmsPressureRr": {"interval_seconds": 60, "resend_interval_seconds": 300},
-    "TpmsRcpFrontValue": {"interval_seconds": 60, "resend_interval_seconds": 300},
-    "TpmsRcpRearValue": {"interval_seconds": 60, "resend_interval_seconds": 300},
-    "TpmsSoftWarningFl": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsSoftWarningFr": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsSoftWarningRl": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsSoftWarningRr": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsHardWarningFl": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsHardWarningFr": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsHardWarningRl": {"interval_seconds": 10, "resend_interval_seconds": 300},
-    "TpmsHardWarningRr": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsSoftWarnings": {"interval_seconds": 10, "resend_interval_seconds": 300},
+    "TpmsHardWarnings": {"interval_seconds": 10, "resend_interval_seconds": 300},
 }
 DEFAULT_TELEMETRY_ALERT_TYPES = ["service", "customer", "service-fix"]
 
@@ -167,11 +159,27 @@ SUPPORTED_TELEMETRY_FIELDS = frozenset(DEFAULT_TELEMETRY_FIELDS)
 DEFAULT_ADDON_OPTIONS_FILE = "/data/options.json"
 DEPRECATED_TELEMETRY_FIELD_RENAMES = {
     "EstBatteryRange": "RatedRange",
+    "TpmsSoftWarningFl": "TpmsSoftWarnings",
+    "TpmsSoftWarningFr": "TpmsSoftWarnings",
+    "TpmsSoftWarningRl": "TpmsSoftWarnings",
+    "TpmsSoftWarningRr": "TpmsSoftWarnings",
+    "TpmsHardWarningFl": "TpmsHardWarnings",
+    "TpmsHardWarningFr": "TpmsHardWarnings",
+    "TpmsHardWarningRl": "TpmsHardWarnings",
+    "TpmsHardWarningRr": "TpmsHardWarnings",
 }
+REMOVED_TELEMETRY_FIELDS = frozenset(
+    {
+        "TpmsRcpFrontValue",
+        "TpmsRcpRearValue",
+    }
+)
 
 
 def migrate_telemetry_fields(fields):
-    """Apply one-way field renames for deprecated Tesla telemetry keys."""
+    """Apply one-way field renames and drop removed Tesla telemetry keys."""
+    for removed_name in REMOVED_TELEMETRY_FIELDS:
+        fields.pop(removed_name, None)
     for old_name, new_name in DEPRECATED_TELEMETRY_FIELD_RENAMES.items():
         if old_name not in fields:
             continue
@@ -219,7 +227,11 @@ def load_configured_telemetry_fields(options_file=None):
             if cleaned_include:
                 entry["include_fields"] = cleaned_include
         fields[name] = entry
-        if name not in SUPPORTED_TELEMETRY_FIELDS:
+        if (
+            name not in SUPPORTED_TELEMETRY_FIELDS
+            and name not in DEPRECATED_TELEMETRY_FIELD_RENAMES
+            and name not in REMOVED_TELEMETRY_FIELDS
+        ):
             log(
                 "warning",
                 f"⚠️ Telemetry field {name} has no tesla_fleet_stream entity "

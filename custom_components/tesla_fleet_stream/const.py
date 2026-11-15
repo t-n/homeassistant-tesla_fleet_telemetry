@@ -118,6 +118,30 @@ DOOR_SENSORS = {
     "TrunkRear": "vehicle_state_rt",
 }
 
+# TpmsSoftWarnings and TpmsHardWarnings are composite TireLocation messages in
+# vehicle_data.proto (front_left, front_right, rear_left, rear_right) that fan
+# out into four per-wheel binary sensors matching official tesla_fleet keys.
+TPMS_SOFT_WARNINGS_FIELD = "TpmsSoftWarnings"
+TPMS_SOFT_WARNING_SENSORS = {
+    "front_left": "tpms_soft_warning_fl",
+    "front_right": "tpms_soft_warning_fr",
+    "rear_left": "tpms_soft_warning_rl",
+    "rear_right": "tpms_soft_warning_rr",
+}
+
+TPMS_HARD_WARNINGS_FIELD = "TpmsHardWarnings"
+TPMS_HARD_WARNING_SENSORS = {
+    "front_left": "tpms_hard_warning_fl",
+    "front_right": "tpms_hard_warning_fr",
+    "rear_left": "tpms_hard_warning_rl",
+    "rear_right": "tpms_hard_warning_rr",
+}
+
+TPMS_WARNING_FIELDS = {
+    TPMS_SOFT_WARNINGS_FIELD: TPMS_SOFT_WARNING_SENSORS,
+    TPMS_HARD_WARNINGS_FIELD: TPMS_HARD_WARNING_SENSORS,
+}
+
 ACTIVE_ALERTS_KEY = "active_alerts"
 WASHER_FLUID_LOW_KEY = "washer_fluid_low"
 

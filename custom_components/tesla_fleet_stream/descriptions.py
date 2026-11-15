@@ -31,6 +31,10 @@ from .const import (
     DOOR_FIELD,
     DOOR_SENSORS,
     GEAR_ENUM_OPTIONS,
+    TPMS_HARD_WARNINGS_FIELD,
+    TPMS_HARD_WARNING_SENSORS,
+    TPMS_SOFT_WARNINGS_FIELD,
+    TPMS_SOFT_WARNING_SENSORS,
     WASHER_FLUID_LOW_KEY,
 )
 
@@ -234,6 +238,7 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "TpmsPressureFr": TeslaFleetStreamSensorDescription(
         key="tpms_pressure_fr",
@@ -244,6 +249,7 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "TpmsPressureRl": TeslaFleetStreamSensorDescription(
         key="tpms_pressure_rl",
@@ -254,6 +260,7 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     "TpmsPressureRr": TeslaFleetStreamSensorDescription(
         key="tpms_pressure_rr",
@@ -264,27 +271,6 @@ SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamSensorDescription] = {
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
-    ),
-    "TpmsRcpFrontValue": TeslaFleetStreamSensorDescription(
-        key="tpms_rcp_front_value",
-        raw_field="TpmsRcpFrontValue",
-        translation_key="vehicle_state_tpms_rcp_front_value",
-        icon="mdi:car-tire-alert",
-        native_unit_of_measurement=UnitOfPressure.BAR,
-        device_class=SensorDeviceClass.PRESSURE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=1,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsRcpRearValue": TeslaFleetStreamSensorDescription(
-        key="tpms_rcp_rear_value",
-        raw_field="TpmsRcpRearValue",
-        translation_key="vehicle_state_tpms_rcp_rear_value",
-        icon="mdi:car-tire-alert",
-        native_unit_of_measurement=UnitOfPressure.BAR,
-        device_class=SensorDeviceClass.PRESSURE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=1,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
 }
@@ -388,62 +374,32 @@ BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescription] =
         translation_key="state",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
-    "TpmsSoftWarningFl": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_soft_warning_fl",
-        raw_field="TpmsSoftWarningFl",
-        translation_key="vehicle_state_tpms_soft_warning_fl",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsSoftWarningFr": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_soft_warning_fr",
-        raw_field="TpmsSoftWarningFr",
-        translation_key="vehicle_state_tpms_soft_warning_fr",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsSoftWarningRl": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_soft_warning_rl",
-        raw_field="TpmsSoftWarningRl",
-        translation_key="vehicle_state_tpms_soft_warning_rl",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsSoftWarningRr": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_soft_warning_rr",
-        raw_field="TpmsSoftWarningRr",
-        translation_key="vehicle_state_tpms_soft_warning_rr",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsHardWarningFl": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_hard_warning_fl",
-        raw_field="TpmsHardWarningFl",
-        translation_key="vehicle_state_tpms_hard_warning_fl",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsHardWarningFr": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_hard_warning_fr",
-        raw_field="TpmsHardWarningFr",
-        translation_key="vehicle_state_tpms_hard_warning_fr",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsHardWarningRl": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_hard_warning_rl",
-        raw_field="TpmsHardWarningRl",
-        translation_key="vehicle_state_tpms_hard_warning_rl",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "TpmsHardWarningRr": TeslaFleetStreamBinarySensorDescription(
-        key="tpms_hard_warning_rr",
-        raw_field="TpmsHardWarningRr",
-        translation_key="vehicle_state_tpms_hard_warning_rr",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
+}
+
+# TpmsSoftWarnings and TpmsHardWarnings arrive as composite TireLocation
+# messages (front_left, front_right, rear_left, rear_right) and fan out into
+# four binary sensors each. Keyed by entity key (not raw_field).
+TPMS_BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescription] = {
+    **{
+        key: TeslaFleetStreamBinarySensorDescription(
+            key=key,
+            raw_field=TPMS_SOFT_WARNINGS_FIELD,
+            translation_key=f"vehicle_state_{key}",
+            device_class=BinarySensorDeviceClass.PROBLEM,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        for key in TPMS_SOFT_WARNING_SENSORS.values()
+    },
+    **{
+        key: TeslaFleetStreamBinarySensorDescription(
+            key=key,
+            raw_field=TPMS_HARD_WARNINGS_FIELD,
+            translation_key=f"vehicle_state_{key}",
+            device_class=BinarySensorDeviceClass.PROBLEM,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        for key in TPMS_HARD_WARNING_SENSORS.values()
+    },
 }
 
 ALERT_BINARY_SENSOR_DESCRIPTIONS: dict[str, TeslaFleetStreamBinarySensorDescription] = {

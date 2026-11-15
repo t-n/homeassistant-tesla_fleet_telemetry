@@ -15,6 +15,7 @@ This repository contains both the Home Assistant add-on (`tesla_fleet_gateway`) 
 - Avoid hardcoded hostnames, VINs, or local mount paths.
 - Keep telemetry field support aligned between add-on schema and integration descriptions/translations.
 - Prefer matching official `tesla_fleet` entity naming (see AGENTS.md).
+- Before adding telemetry fields, confirm the exact `Field` enum name in Tesla’s `vehicle_data.proto` (see AGENTS.md). Invented names cause HTTP 400 `Unknown field` and reject the entire config.
 
 ## Validation
 

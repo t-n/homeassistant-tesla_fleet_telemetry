@@ -441,6 +441,136 @@ def extract_doors(payload: Any) -> dict[str, bool] | None:
     return result or None
 
 
+TIRE_LOCATION_FIELDS = (
+    "front_left",
+    "front_right",
+    "rear_left",
+    "rear_right",
+)
+
+_TIRE_LOCATION_ALIASES: dict[str, tuple[str, ...]] = {
+    "front_left": ("frontleft", "tirelocationfrontleft", "fl"),
+    "front_right": ("frontright", "tirelocationfrontright", "fr"),
+    "rear_left": ("rearleft", "tirelocationrearleft", "rl"),
+    "rear_right": ("rearright", "tirelocationrearright", "rr"),
+}
+
+_TIRE_LOCATION_CONTAINER_KEYS = (
+    "tire_location_value",
+    "TireLocationValue",
+    "tireLocationValue",
+    "tire_location",
+    "TireLocation",
+    "TpmsSoftWarnings",
+    "TpmsHardWarnings",
+    "value",
+    "Value",
+)
+
+_ALL_TIRE_ALIASES = frozenset(
+    alias for aliases in _TIRE_LOCATION_ALIASES.values() for alias in aliases
+) | frozenset(
+    {
+        "semimiddleaxleleft2",
+        "semimiddleaxleright2",
+        "semirearaxleleft",
+        "semirearaxleright",
+        "semirearaxleleft2",
+        "semirearaxleright2",
+    }
+)
+
+
+def _match_tire_location_name(raw: str) -> str | None:
+    """Match a string token to one of the four standard tire location keys."""
+    normalized = raw.strip().lower().replace("_", "")
+    for prefix in ("tpmssoftwarnings", "tpmshardwarnings"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+    for field_name, aliases in _TIRE_LOCATION_ALIASES.items():
+        if normalized in aliases:
+            return field_name
+    return None
+
+
+def extract_tpms_warnings(payload: Any) -> dict[str, bool] | None:
+    """Extract per-tire warning booleans from a TireLocation payload.
+
+    In vehicle_data.proto, TpmsSoftWarnings and TpmsHardWarnings carry a
+    composite TireLocation message (front_left, front_right, rear_left,
+    rear_right). Because proto3 JSON serialization omits false booleans, any
+    standard corner absent from a valid TireLocation mapping defaults to False.
+    """
+    if isinstance(payload, str):
+        stripped = payload.strip()
+        if not stripped:
+            return None
+        lowered = stripped.lower()
+        if lowered in {"false", "clear", "cleared", "none", "0", "off", "null"}:
+            return {field: False for field in TIRE_LOCATION_FIELDS}
+        matched = _match_tire_location_name(stripped)
+        if matched is not None:
+            return {field: (field == matched) for field in TIRE_LOCATION_FIELDS}
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            return None
+
+    if payload is False:
+        return {field: False for field in TIRE_LOCATION_FIELDS}
+
+    if isinstance(payload, list):
+        active: set[str] = set()
+        for item in payload:
+            if isinstance(item, str):
+                matched = _match_tire_location_name(item)
+                if matched is not None:
+                    active.add(matched)
+        return {field: (field in active) for field in TIRE_LOCATION_FIELDS}
+
+    if not isinstance(payload, dict):
+        return None
+
+    if any(payload.get(key) is True for key in INVALID_SENTINEL_KEYS):
+        return None
+
+    for key in _TIRE_LOCATION_CONTAINER_KEYS:
+        if key not in payload:
+            continue
+        nested = payload[key]
+        if nested is None or nested is False or nested == {} or nested == []:
+            return {field: False for field in TIRE_LOCATION_FIELDS}
+        if isinstance(nested, (str, list, dict)):
+            return extract_tpms_warnings(nested)
+
+    if not payload:
+        return {field: False for field in TIRE_LOCATION_FIELDS}
+
+    lookup = {str(key).lower().replace("_", ""): value for key, value in payload.items()}
+    meta_keys = {k.lower().replace("_", "") for k in TIMESTAMP_PAYLOAD_KEYS} | {
+        "key",
+        "field",
+        "vin",
+    }
+    if not (set(lookup) & _ALL_TIRE_ALIASES) and not (set(lookup) <= meta_keys):
+        return None
+
+    result: dict[str, bool] = {}
+    for field_name, aliases in _TIRE_LOCATION_ALIASES.items():
+        raw_val = None
+        for alias in aliases:
+            if alias in lookup:
+                raw_val = lookup[alias]
+                break
+        if raw_val is None:
+            result[field_name] = False
+        else:
+            coerced = _coerce_door_bool(raw_val)
+            result[field_name] = bool(coerced) if coerced is not None else False
+
+    return result
+
+
 def extract_location(payload: Any) -> dict[str, Any] | None:
     """Extract GPS coordinates from a Tesla telemetry payload."""
     if isinstance(payload, str):
@@ -591,6 +721,8 @@ def extract_alerts(
     subtopic: str | None = None,
 ) -> list[dict[str, Any]] | None:
     """Extract normalized alert events from a Fleet Telemetry MQTT payload."""
+    if subtopic == "history":
+        return None
     if isinstance(payload, str):
         stripped = payload.strip()
         if not stripped or stripped.lower() in {"null", "none", "clear", "cleared"}:
@@ -663,9 +795,36 @@ def extract_alerts(
     return None
 
 
-def is_washer_fluid_alert(alert_name: str) -> bool:
-    """Return True when alert_name indicates low windshield washer fluid."""
+_TPMS_ALERT_SUFFIX_TO_KEY = {
+    "tpmssoftwarningfrontleft": "tpms_soft_warning_fl",
+    "tpmssoftwarningfrontright": "tpms_soft_warning_fr",
+    "tpmssoftwarningrearleft": "tpms_soft_warning_rl",
+    "tpmssoftwarningrearright": "tpms_soft_warning_rr",
+    "tpmshardwarningfrontleft": "tpms_hard_warning_fl",
+    "tpmshardwarningfrontright": "tpms_hard_warning_fr",
+    "tpmshardwarningrearleft": "tpms_hard_warning_rl",
+    "tpmshardwarningrearright": "tpms_hard_warning_rr",
+}
+
+
+def tpms_alert_sensor_key(alert_name: str) -> str | None:
+    """Return the TPMS warning binary_sensor key for a per-wheel TPMS alert."""
     normalized = alert_name.strip().lower().replace("_", "")
-    return "washerfluid" in normalized
+    for suffix, sensor_key in _TPMS_ALERT_SUFFIX_TO_KEY.items():
+        if normalized.endswith(suffix):
+            return sensor_key
+    return None
+
+
+def is_washer_fluid_alert(alert_name: str) -> bool:
+    """Return True when alert_name indicates low windshield washer fluid.
+
+    Matches modern *_a185_washerFluidLow alerts as well as legacy Model S/X
+    BCFRONT_w043_WndshldWashFluidLow, while ignoring Semi momentary alerts.
+    """
+    normalized = alert_name.strip().lower().replace("_", "")
+    if "momentary" in normalized:
+        return False
+    return "washerfluidlow" in normalized or "washfluidlow" in normalized
 
 

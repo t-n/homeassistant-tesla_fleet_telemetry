@@ -14,6 +14,7 @@ from .descriptions import (
     ALERT_BINARY_SENSOR_DESCRIPTIONS,
     BINARY_SENSOR_DESCRIPTIONS,
     DOOR_BINARY_SENSOR_DESCRIPTIONS,
+    TPMS_BINARY_SENSOR_DESCRIPTIONS,
 )
 from .entity import TeslaFleetStreamEntity
 
@@ -34,6 +35,7 @@ async def async_setup_entry(
         for description in (
             *BINARY_SENSOR_DESCRIPTIONS.values(),
             *DOOR_BINARY_SENSOR_DESCRIPTIONS.values(),
+            *TPMS_BINARY_SENSOR_DESCRIPTIONS.values(),
             *ALERT_BINARY_SENSOR_DESCRIPTIONS.values(),
         )
     }

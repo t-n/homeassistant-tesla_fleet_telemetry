@@ -158,12 +158,6 @@
       "vehicle_state_tpms_pressure_rr": {
         "name": "Däcktryck höger bak (live)"
       },
-      "vehicle_state_tpms_rcp_front_value": {
-        "name": "Rekommenderat kallt däcktryck fram (live)"
-      },
-      "vehicle_state_tpms_rcp_rear_value": {
-        "name": "Rekommenderat kallt däcktryck bak (live)"
-      },
       "active_alerts": {
         "name": "Aktiva varningar (live)"
       }

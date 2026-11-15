@@ -2,6 +2,7 @@
 
 - **No telemetry data**: verify vehicle is awake, MQTT reachable, and telemetry host enabled.
 - **New field missing in HA**: save/restart the add-on after editing Telemetry fields; wait for the car to stream a sample (change-only fields may wait until the value changes unless `resend_interval_seconds` is set). Derived sensors need their inputs first — see `docs/architecture.md`.
+- **`Unknown field …` / config apply rejected (HTTP 4xx)**: Tesla rejected a telemetry field name (or related request body). One bad name rejects the whole config; existing fields keep streaming from the previous synced config. Confirm the PascalCase name in Tesla [`vehicle_data.proto`](https://github.com/teslamotors/fleet-telemetry/blob/main/protos/vehicle_data.proto), fix add-on Telemetry fields / schema / `tesla_oauth.py`, then restart. The add-on does not retry 4xx — see AGENTS.md “Validate the Tesla field name first”.
 - **`missing_key`**: pair virtual key via `https://tesla.com/_ak/<domain>`.
 - **TLS SAN warning**: cert must include `telemetry.<domain>`.
 - **Handshake noise**: scanner traffic is expected; `SUPPRESS_TLS_HANDSHAKE_ERROR_LOGGING=true` is enabled.

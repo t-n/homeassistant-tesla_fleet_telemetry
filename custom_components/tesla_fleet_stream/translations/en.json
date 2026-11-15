@@ -158,12 +158,6 @@
       "vehicle_state_tpms_pressure_rr": {
         "name": "Rear right tire pressure (live)"
       },
-      "vehicle_state_tpms_rcp_front_value": {
-        "name": "Recommended cold front tire pressure (live)"
-      },
-      "vehicle_state_tpms_rcp_rear_value": {
-        "name": "Recommended cold rear tire pressure (live)"
-      },
       "active_alerts": {
         "name": "Active alerts (live)"
       }

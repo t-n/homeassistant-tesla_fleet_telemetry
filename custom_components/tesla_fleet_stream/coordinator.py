@@ -57,6 +57,7 @@ from .const import (
     GEAR_RAW_FIELDS,
     IGNORED_TELEMETRY_FIELDS,
     MPH_TO_KMH,
+    TPMS_WARNING_FIELDS,
     WASHER_FLUID_LOW_KEY,
     is_valid_vin,
     normalize_topic_base,
@@ -72,6 +73,7 @@ from .descriptions import (
     LOCATION_FIELD,
     LOCATION_KEY,
     SENSOR_DESCRIPTIONS,
+    TPMS_BINARY_SENSOR_DESCRIPTIONS,
 )
 from .models import DriveConsumptionSession, EntityTimestamps, VehicleTelemetryState
 from .parsers import (
@@ -86,9 +88,11 @@ from .parsers import (
     extract_numeric_scalar,
     extract_sample_time,
     extract_scalar,
+    extract_tpms_warnings,
     is_washer_fluid_alert,
     normalize_charge_state,
     normalize_gear,
+    tpms_alert_sensor_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -242,6 +246,8 @@ class TeslaFleetStreamRuntime:
                 for description in BINARY_SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("binary_sensor", vin, description.key)
                 for description in DOOR_BINARY_SENSOR_DESCRIPTIONS.values():
+                    self._ensure_entity("binary_sensor", vin, description.key)
+                for description in TPMS_BINARY_SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("binary_sensor", vin, description.key)
                 for description in ALERT_BINARY_SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("binary_sensor", vin, description.key)
@@ -501,6 +507,30 @@ class TeslaFleetStreamRuntime:
             self._log_metric_traffic(vin, raw_field, doors)
             return
 
+        if raw_field in TPMS_WARNING_FIELDS:
+            warnings = extract_tpms_warnings(payload)
+            if warnings is None:
+                return
+            sensor_map = TPMS_WARNING_FIELDS[raw_field]
+            for tire_key, sensor_key in sensor_map.items():
+                if tire_key not in warnings:
+                    continue
+                previous = vehicle.binary_sensors.get(sensor_key)
+                vehicle.binary_sensors[sensor_key] = warnings[tire_key]
+                self._record_entity_update(
+                    vehicle,
+                    sensor_key,
+                    warnings[tire_key],
+                    previous,
+                    sample_time,
+                )
+                self._ensure_entity("binary_sensor", vin, sensor_key)
+                async_dispatcher_send(
+                    self.hass, update_signal("binary_sensor", vin, sensor_key)
+                )
+            self._log_metric_traffic(vin, raw_field, warnings)
+            return
+
         if raw_field in BINARY_SENSOR_DESCRIPTIONS:
             description = BINARY_SENSOR_DESCRIPTIONS[raw_field]
             value = extract_bool(payload)
@@ -543,25 +573,6 @@ class TeslaFleetStreamRuntime:
             )
             return
 
-        if raw_field == "WasherFluidLow":
-            value = extract_bool(payload)
-            previous = vehicle.binary_sensors.get(WASHER_FLUID_LOW_KEY)
-            if value is not None or WASHER_FLUID_LOW_KEY not in vehicle.binary_sensors:
-                vehicle.binary_sensors[WASHER_FLUID_LOW_KEY] = value
-                self._record_entity_update(
-                    vehicle,
-                    WASHER_FLUID_LOW_KEY,
-                    value,
-                    previous,
-                    sample_time,
-                )
-            self._log_metric_traffic(vin, raw_field, value)
-            self._ensure_entity("binary_sensor", vin, WASHER_FLUID_LOW_KEY)
-            async_dispatcher_send(
-                self.hass,
-                update_signal("binary_sensor", vin, WASHER_FLUID_LOW_KEY),
-            )
-
     @callback
     def _handle_alert_message(self, msg: ReceiveMessage) -> None:
         """Handle a vehicle alert MQTT message."""
@@ -578,6 +589,8 @@ class TeslaFleetStreamRuntime:
 
         topic_alert_name = tail[2] if len(tail) >= 3 else None
         subtopic = tail[3] if len(tail) >= 4 else None
+        if subtopic == "history":
+            return
         payload = decode_payload(msg.payload)
         events = extract_alerts(
             payload,
@@ -598,6 +611,23 @@ class TeslaFleetStreamRuntime:
             vehicle.last_alert = event
             if sample_time is None and isinstance(event.get("started_at"), str):
                 sample_time = parse_datetime(event["started_at"])
+            tpms_sensor_key = tpms_alert_sensor_key(name)
+            if tpms_sensor_key is not None:
+                is_active = bool(event.get("active"))
+                previous_tpms = vehicle.binary_sensors.get(tpms_sensor_key)
+                vehicle.binary_sensors[tpms_sensor_key] = is_active
+                self._record_entity_update(
+                    vehicle,
+                    tpms_sensor_key,
+                    is_active,
+                    previous_tpms,
+                    sample_time,
+                )
+                self._ensure_entity("binary_sensor", vin, tpms_sensor_key)
+                async_dispatcher_send(
+                    self.hass,
+                    update_signal("binary_sensor", vin, tpms_sensor_key),
+                )
 
         active_count = len(vehicle.active_alerts)
         previous_count = vehicle.sensors.get(ACTIVE_ALERTS_KEY)
