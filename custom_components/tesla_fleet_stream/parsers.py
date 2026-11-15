@@ -512,3 +512,160 @@ def _first_present(payload: dict[str, Any], keys: tuple[str, ...]) -> Any | None
             return payload[key]
     return None
 
+
+def _normalize_alert_timestamp(value: Any) -> str | None:
+    """Normalize an alert timestamp, treating Go/proto zero times as absent."""
+    if value is None or isinstance(value, bool):
+        return None
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or stripped in {"0", "null", "none"}:
+            return None
+        if stripped.startswith(("0001-01-01", "1970-01-01T00:00:00")):
+            return None
+        parsed = parse_datetime(stripped)
+        if parsed is not None:
+            if parsed.year <= 1970:
+                return None
+            return parsed.isoformat()
+        return stripped
+
+    if isinstance(value, (int, float)):
+        parsed = _parse_timestamp_value(value)
+        if parsed is not None and parsed.year > 1970:
+            return parsed.isoformat()
+
+    return None
+
+
+def _parse_single_alert(
+    item: dict[str, Any],
+    fallback_name: str | None = None,
+    subtopic: str | None = None,
+) -> dict[str, Any] | None:
+    """Normalize a single Fleet Telemetry alert object."""
+    raw_name = _first_present(item, ("Name", "name", "alert_name", "AlertName"))
+    name = (
+        raw_name.strip()
+        if isinstance(raw_name, str) and raw_name.strip()
+        else fallback_name
+    )
+    if not isinstance(name, str) or not name.strip():
+        return None
+    name = name.strip()
+
+    started_at = _normalize_alert_timestamp(
+        _first_present(item, ("StartedAt", "startedAt", "started_at"))
+    )
+    ended_at = _normalize_alert_timestamp(
+        _first_present(item, ("EndedAt", "endedAt", "ended_at"))
+    )
+
+    raw_audiences = _first_present(item, ("Audiences", "audiences"))
+    audiences: list[str] = []
+    if isinstance(raw_audiences, list):
+        audiences = [
+            str(aud).strip()
+            for aud in raw_audiences
+            if isinstance(aud, (str, int)) and str(aud).strip()
+        ]
+
+    if subtopic == "history" or ended_at is not None:
+        active = False
+    else:
+        active = True
+
+    return {
+        "name": name,
+        "active": active,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "audiences": audiences,
+    }
+
+
+def extract_alerts(
+    payload: Any,
+    topic_alert_name: str | None = None,
+    subtopic: str | None = None,
+) -> list[dict[str, Any]] | None:
+    """Extract normalized alert events from a Fleet Telemetry MQTT payload."""
+    if isinstance(payload, str):
+        stripped = payload.strip()
+        if not stripped or stripped.lower() in {"null", "none", "clear", "cleared"}:
+            if topic_alert_name and subtopic == "current":
+                return [
+                    {
+                        "name": topic_alert_name,
+                        "active": False,
+                        "started_at": None,
+                        "ended_at": None,
+                        "audiences": [],
+                    }
+                ]
+            return None
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            return None
+
+    if payload is None:
+        if topic_alert_name and subtopic == "current":
+            return [
+                {
+                    "name": topic_alert_name,
+                    "active": False,
+                    "started_at": None,
+                    "ended_at": None,
+                    "audiences": [],
+                }
+            ]
+        return None
+
+    if isinstance(payload, list):
+        events = [
+            parsed
+            for item in payload
+            if isinstance(item, dict)
+            and (parsed := _parse_single_alert(item, topic_alert_name, subtopic))
+            is not None
+        ]
+        return events or None
+
+    if isinstance(payload, dict):
+        if not payload and topic_alert_name and subtopic == "current":
+            return [
+                {
+                    "name": topic_alert_name,
+                    "active": False,
+                    "started_at": None,
+                    "ended_at": None,
+                    "audiences": [],
+                }
+            ]
+
+        nested_list = _first_present(payload, ("alerts", "Alerts", "value", "Value"))
+        if isinstance(nested_list, list):
+            events = [
+                parsed
+                for item in nested_list
+                if isinstance(item, dict)
+                and (parsed := _parse_single_alert(item, topic_alert_name, subtopic))
+                is not None
+            ]
+            return events or None
+
+        single = _parse_single_alert(payload, topic_alert_name, subtopic)
+        if single is not None:
+            return [single]
+
+    return None
+
+
+def is_washer_fluid_alert(alert_name: str) -> bool:
+    """Return True when alert_name indicates low windshield washer fluid."""
+    normalized = alert_name.strip().lower().replace("_", "")
+    return "washerfluid" in normalized
+
+

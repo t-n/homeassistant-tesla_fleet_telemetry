@@ -13,6 +13,7 @@ from homeassistant.util.unit_conversion import (
     DistanceConverter,
     EnergyConverter,
     EnergyDistanceConverter,
+    PressureConverter,
     SpeedConverter,
     TemperatureConverter,
 )
@@ -20,7 +21,7 @@ from homeassistant.util.variance import ignore_variance
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DERIVED_SENSOR_KEYS, new_entity_signal
+from .const import ACTIVE_ALERTS_KEY, DERIVED_SENSOR_KEYS, new_entity_signal
 from .coordinator import TeslaFleetStreamRuntime
 from .descriptions import SENSOR_DESCRIPTIONS_BY_KEY
 from .entity import TeslaFleetStreamEntity
@@ -76,11 +77,21 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
         if self._key in DERIVED_SENSOR_KEYS:
             return
 
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            self._runtime.restore_entity_timestamps(
+                self._vin, self._key, last_state.attributes
+            )
+            if self._key == ACTIVE_ALERTS_KEY:
+                self._runtime.restore_alert_attributes(
+                    self._vin, last_state.attributes
+                )
+
         if (last_sensor_data := await self.async_get_last_sensor_data()) is not None:
             if self._restore_from_sensor_data(last_sensor_data.native_value):
                 return
 
-        if (last_state := await self.async_get_last_state()) is not None:
+        if last_state is not None:
             if last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 self._restore_from_last_state(last_state)
 
@@ -106,6 +117,11 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
             return False
 
         if isinstance(native_value, (int, float)):
+            if self._key == ACTIVE_ALERTS_KEY:
+                self._runtime.restore_sensor_value(
+                    self._vin, self._key, int(native_value)
+                )
+                return True
             self._restore_measurement_value(float(native_value))
             return True
         return False
@@ -128,6 +144,10 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
         try:
             value = float(state.state)
         except ValueError:
+            return
+
+        if self._key == ACTIVE_ALERTS_KEY:
+            self._runtime.restore_sensor_value(self._vin, self._key, int(value))
             return
 
         display_unit = state.attributes.get("unit_of_measurement")
@@ -173,6 +193,7 @@ class TeslaFleetStreamSensor(RestoreSensor, TeslaFleetStreamEntity):
         """Convert a legacy displayed state value back to the native unit."""
         converter_by_class = {
             SensorDeviceClass.DISTANCE: DistanceConverter,
+            SensorDeviceClass.PRESSURE: PressureConverter,
             SensorDeviceClass.SPEED: SpeedConverter,
             SensorDeviceClass.TEMPERATURE: TemperatureConverter,
             SensorDeviceClass.ENERGY: EnergyConverter,

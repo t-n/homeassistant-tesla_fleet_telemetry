@@ -39,3 +39,5 @@ class VehicleTelemetryState:
     drive_consumption: DriveConsumptionSession = field(
         default_factory=DriveConsumptionSession
     )
+    active_alerts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    last_alert: dict[str, Any] | None = None

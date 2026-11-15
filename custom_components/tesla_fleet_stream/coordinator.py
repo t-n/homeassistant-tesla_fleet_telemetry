@@ -29,6 +29,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.dt import parse_datetime
 
 from .const import (
+    ACTIVE_ALERTS_KEY,
     CHARGE_STATE_RAW_FIELDS,
     CHARGING_POWER_RAW_FIELDS,
     COMBINED_CHARGER_POWER_KEY,
@@ -56,6 +57,7 @@ from .const import (
     GEAR_RAW_FIELDS,
     IGNORED_TELEMETRY_FIELDS,
     MPH_TO_KMH,
+    WASHER_FLUID_LOW_KEY,
     is_valid_vin,
     normalize_topic_base,
     new_entity_signal,
@@ -64,6 +66,7 @@ from .const import (
 )
 from .fleet_api import async_fetch_vehicle_vins
 from .descriptions import (
+    ALERT_BINARY_SENSOR_DESCRIPTIONS,
     BINARY_SENSOR_DESCRIPTIONS,
     DOOR_BINARY_SENSOR_DESCRIPTIONS,
     LOCATION_FIELD,
@@ -73,6 +76,7 @@ from .descriptions import (
 from .models import DriveConsumptionSession, EntityTimestamps, VehicleTelemetryState
 from .parsers import (
     decode_payload,
+    extract_alerts,
     extract_bool,
     extract_charge_state,
     extract_connectivity,
@@ -82,6 +86,7 @@ from .parsers import (
     extract_numeric_scalar,
     extract_sample_time,
     extract_scalar,
+    is_washer_fluid_alert,
     normalize_charge_state,
     normalize_gear,
 )
@@ -122,7 +127,7 @@ class TeslaFleetStreamRuntime:
             "binary_sensor": set(),
             "device_tracker": set(),
         }
-        self._message_counts = {"metrics": 0, "connectivity": 0}
+        self._message_counts = {"metrics": 0, "connectivity": 0, "alerts": 0}
         self._logged_vins: set[str] = set()
         self._connectivity_disconnect_unsubs: dict[str, Callable[[], None]] = {}
         # Set by async_setup_entry; used to ignore token-only config updates.
@@ -141,6 +146,11 @@ class TeslaFleetStreamRuntime:
                 "msg_callback": self._handle_connectivity_message,
                 "qos": 1,
             },
+            "alerts": {
+                "topic": f"{self.topic_base}/+/alerts/#",
+                "msg_callback": self._handle_alert_message,
+                "qos": 1,
+            },
         }
         self._sub_state = async_prepare_subscribe_topics(
             self.hass,
@@ -149,7 +159,8 @@ class TeslaFleetStreamRuntime:
         )
         await async_subscribe_topics(self.hass, self._sub_state)
         _LOGGER.info(
-            "Subscribed to MQTT telemetry on %s/+/v/+ and %s/+/connectivity",
+            "Subscribed to MQTT telemetry on %s/+/v/+, %s/+/connectivity, and %s/+/alerts/#",
+            self.topic_base,
             self.topic_base,
             self.topic_base,
         )
@@ -225,11 +236,14 @@ class TeslaFleetStreamRuntime:
                 # Pre-register derived pack power so restore/MQTT cannot mark it
                 # known before the sensor platform is listening.
                 self._ensure_entity("sensor", vin, DERIVED_PACK_POWER_KEY)
+                self._ensure_entity("sensor", vin, ACTIVE_ALERTS_KEY)
 
             if "binary_sensor" in self.enabled_platforms:
                 for description in BINARY_SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("binary_sensor", vin, description.key)
                 for description in DOOR_BINARY_SENSOR_DESCRIPTIONS.values():
+                    self._ensure_entity("binary_sensor", vin, description.key)
+                for description in ALERT_BINARY_SENSOR_DESCRIPTIONS.values():
                     self._ensure_entity("binary_sensor", vin, description.key)
 
             if "device_tracker" in self.enabled_platforms:
@@ -252,6 +266,25 @@ class TeslaFleetStreamRuntime:
     def get_entity_timestamps(self, vin: str, key: str) -> EntityTimestamps | None:
         """Return telemetry timestamps for an entity key."""
         return self._vehicles.get(vin, VehicleTelemetryState()).timestamps.get(key)
+
+    def get_entity_extra_attributes(
+        self, vin: str, key: str
+    ) -> dict[str, Any] | None:
+        """Return optional extra state attributes for an entity key."""
+        if key != ACTIVE_ALERTS_KEY:
+            return None
+        vehicle = self._vehicles.get(vin)
+        if vehicle is None:
+            return {"active_alerts": []}
+        attrs: dict[str, Any] = {
+            "active_alerts": sorted(vehicle.active_alerts),
+        }
+        if vehicle.last_alert is not None:
+            attrs["last_alert"] = vehicle.last_alert.get("name")
+            attrs["last_alert_started_at"] = vehicle.last_alert.get("started_at")
+            attrs["last_alert_ended_at"] = vehicle.last_alert.get("ended_at")
+            attrs["last_alert_audiences"] = vehicle.last_alert.get("audiences")
+        return attrs
 
     def get_sensor_value(self, vin: str, key: str) -> Any | None:
         """Return a sensor value."""
@@ -306,6 +339,37 @@ class TeslaFleetStreamRuntime:
     def restore_sensor_value(self, vin: str, key: str, value: Any) -> None:
         """Restore a sensor value from Home Assistant state."""
         self._vehicles.setdefault(vin, VehicleTelemetryState()).sensors[key] = value
+
+    @callback
+    def restore_alert_attributes(self, vin: str, attributes: dict[str, Any]) -> None:
+        """Restore active alert state from saved entity attributes."""
+        vehicle = self._vehicles.setdefault(vin, VehicleTelemetryState())
+        raw_active = attributes.get("active_alerts")
+        if isinstance(raw_active, list):
+            for item in raw_active:
+                if isinstance(item, str) and item.strip():
+                    name = item.strip()
+                    vehicle.active_alerts.setdefault(
+                        name,
+                        {
+                            "name": name,
+                            "started_at": None,
+                            "ended_at": None,
+                            "audiences": [],
+                            "active": True,
+                        },
+                    )
+        last_name = attributes.get("last_alert")
+        if isinstance(last_name, str) and last_name.strip():
+            audiences = attributes.get("last_alert_audiences")
+            vehicle.last_alert = {
+                "name": last_name.strip(),
+                "started_at": attributes.get("last_alert_started_at"),
+                "ended_at": attributes.get("last_alert_ended_at"),
+                "audiences": (
+                    [str(a) for a in audiences] if isinstance(audiences, list) else []
+                ),
+            }
 
     @callback
     def restore_binary_sensor_value(
@@ -367,6 +431,7 @@ class TeslaFleetStreamRuntime:
         payload = decode_payload(msg.payload)
         vehicle = self._vehicles.setdefault(vin, VehicleTelemetryState())
         sample_time = extract_sample_time(payload)
+        self._ensure_default_alert_states(vin, sample_time)
 
         if raw_field in IGNORED_TELEMETRY_FIELDS:
             return
@@ -476,6 +541,143 @@ class TeslaFleetStreamRuntime:
                 self.hass,
                 update_signal("device_tracker", vin, LOCATION_KEY),
             )
+            return
+
+        if raw_field == "WasherFluidLow":
+            value = extract_bool(payload)
+            previous = vehicle.binary_sensors.get(WASHER_FLUID_LOW_KEY)
+            if value is not None or WASHER_FLUID_LOW_KEY not in vehicle.binary_sensors:
+                vehicle.binary_sensors[WASHER_FLUID_LOW_KEY] = value
+                self._record_entity_update(
+                    vehicle,
+                    WASHER_FLUID_LOW_KEY,
+                    value,
+                    previous,
+                    sample_time,
+                )
+            self._log_metric_traffic(vin, raw_field, value)
+            self._ensure_entity("binary_sensor", vin, WASHER_FLUID_LOW_KEY)
+            async_dispatcher_send(
+                self.hass,
+                update_signal("binary_sensor", vin, WASHER_FLUID_LOW_KEY),
+            )
+
+    @callback
+    def _handle_alert_message(self, msg: ReceiveMessage) -> None:
+        """Handle a vehicle alert MQTT message."""
+        tail = self._topic_tail(msg.topic)
+        if len(tail) < 2 or tail[1] != "alerts":
+            return
+
+        vin = tail[0].upper()
+        if not is_valid_vin(vin):
+            _LOGGER.debug(
+                "Ignoring MQTT alert message with invalid VIN fragment: %s", vin
+            )
+            return
+
+        topic_alert_name = tail[2] if len(tail) >= 3 else None
+        subtopic = tail[3] if len(tail) >= 4 else None
+        payload = decode_payload(msg.payload)
+        events = extract_alerts(
+            payload,
+            topic_alert_name=topic_alert_name,
+            subtopic=subtopic,
+        )
+        if not events:
+            return
+
+        vehicle = self._vehicles.setdefault(vin, VehicleTelemetryState())
+        sample_time = extract_sample_time(payload)
+        for event in events:
+            name = event["name"]
+            if event.get("active"):
+                vehicle.active_alerts[name] = event
+            else:
+                vehicle.active_alerts.pop(name, None)
+            vehicle.last_alert = event
+            if sample_time is None and isinstance(event.get("started_at"), str):
+                sample_time = parse_datetime(event["started_at"])
+
+        active_count = len(vehicle.active_alerts)
+        previous_count = vehicle.sensors.get(ACTIVE_ALERTS_KEY)
+        vehicle.sensors[ACTIVE_ALERTS_KEY] = active_count
+        self._record_entity_update(
+            vehicle,
+            ACTIVE_ALERTS_KEY,
+            active_count,
+            previous_count,
+            sample_time,
+        )
+        self._ensure_entity("sensor", vin, ACTIVE_ALERTS_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("sensor", vin, ACTIVE_ALERTS_KEY),
+        )
+
+        washer_low = any(
+            is_washer_fluid_alert(name) for name in vehicle.active_alerts
+        )
+        previous_washer = vehicle.binary_sensors.get(WASHER_FLUID_LOW_KEY)
+        vehicle.binary_sensors[WASHER_FLUID_LOW_KEY] = washer_low
+        self._record_entity_update(
+            vehicle,
+            WASHER_FLUID_LOW_KEY,
+            washer_low,
+            previous_washer,
+            sample_time,
+        )
+        self._ensure_entity("binary_sensor", vin, WASHER_FLUID_LOW_KEY)
+        async_dispatcher_send(
+            self.hass,
+            update_signal("binary_sensor", vin, WASHER_FLUID_LOW_KEY),
+        )
+        self._log_alert_traffic(vin, events, active_count)
+
+    @callback
+    def _ensure_default_alert_states(
+        self, vin: str, sample_time: datetime | None
+    ) -> None:
+        """Seed baseline alert states when a vehicle connects or streams metrics.
+
+        Vehicles with no active alerts do not publish on /alerts/# until a fault
+        occurs, so initializing to 0 / Clear prevents healthy vehicles from
+        showing unavailable indefinitely.
+        """
+        vehicle = self._vehicles.setdefault(vin, VehicleTelemetryState())
+        if vehicle.sensors.get(ACTIVE_ALERTS_KEY) is None:
+            active_count = len(vehicle.active_alerts)
+            vehicle.sensors[ACTIVE_ALERTS_KEY] = active_count
+            self._record_entity_update(
+                vehicle,
+                ACTIVE_ALERTS_KEY,
+                active_count,
+                None,
+                sample_time,
+            )
+            self._ensure_entity("sensor", vin, ACTIVE_ALERTS_KEY)
+            async_dispatcher_send(
+                self.hass,
+                update_signal("sensor", vin, ACTIVE_ALERTS_KEY),
+            )
+
+        if WASHER_FLUID_LOW_KEY not in vehicle.binary_sensors:
+            washer_low = any(
+                is_washer_fluid_alert(name) for name in vehicle.active_alerts
+            )
+            vehicle.binary_sensors[WASHER_FLUID_LOW_KEY] = washer_low
+            self._record_entity_update(
+                vehicle,
+                WASHER_FLUID_LOW_KEY,
+                washer_low,
+                None,
+                sample_time,
+            )
+            self._ensure_entity("binary_sensor", vin, WASHER_FLUID_LOW_KEY)
+            async_dispatcher_send(
+                self.hass,
+                update_signal("binary_sensor", vin, WASHER_FLUID_LOW_KEY),
+            )
 
     @callback
     def _handle_connectivity_message(self, msg: ReceiveMessage) -> None:
@@ -562,6 +764,8 @@ class TeslaFleetStreamRuntime:
             self.hass,
             update_signal("binary_sensor", vin, "connectivity"),
         )
+        if value is True:
+            self._ensure_default_alert_states(vin, sample_time)
         if value != previous:
             async_dispatcher_send(
                 self.hass,
@@ -588,6 +792,19 @@ class TeslaFleetStreamRuntime:
             vin,
             value,
             self._message_counts["metrics"],
+        )
+
+    def _log_alert_traffic(
+        self, vin: str, events: list[dict[str, Any]], active_count: int
+    ) -> None:
+        """Log vehicle alert MQTT events."""
+        self._message_counts["alerts"] += 1
+        _LOGGER.debug(
+            "MQTT alerts %s: %d event(s), %d active (%s)",
+            vin,
+            len(events),
+            active_count,
+            [event.get("name") for event in events],
         )
 
     @callback

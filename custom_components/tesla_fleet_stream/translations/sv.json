@@ -31,6 +31,33 @@
       },
       "vehicle_state_rt": {
         "name": "Bagage (live)"
+      },
+      "vehicle_state_tpms_soft_warning_fl": {
+        "name": "Däcktryck mjuk varning vänster fram (live)"
+      },
+      "vehicle_state_tpms_soft_warning_fr": {
+        "name": "Däcktryck mjuk varning höger fram (live)"
+      },
+      "vehicle_state_tpms_soft_warning_rl": {
+        "name": "Däcktryck mjuk varning vänster bak (live)"
+      },
+      "vehicle_state_tpms_soft_warning_rr": {
+        "name": "Däcktryck mjuk varning höger bak (live)"
+      },
+      "vehicle_state_tpms_hard_warning_fl": {
+        "name": "Däcktryck hård varning vänster fram (live)"
+      },
+      "vehicle_state_tpms_hard_warning_fr": {
+        "name": "Däcktryck hård varning höger fram (live)"
+      },
+      "vehicle_state_tpms_hard_warning_rl": {
+        "name": "Däcktryck hård varning vänster bak (live)"
+      },
+      "vehicle_state_tpms_hard_warning_rr": {
+        "name": "Däcktryck hård varning höger bak (live)"
+      },
+      "vehicle_state_washer_fluid_low": {
+        "name": "Låg spolarvätska (live)"
       }
     },
     "device_tracker": {
@@ -118,6 +145,27 @@
           "n": "N",
           "d": "D"
         }
+      },
+      "vehicle_state_tpms_pressure_fl": {
+        "name": "Däcktryck vänster fram (live)"
+      },
+      "vehicle_state_tpms_pressure_fr": {
+        "name": "Däcktryck höger fram (live)"
+      },
+      "vehicle_state_tpms_pressure_rl": {
+        "name": "Däcktryck vänster bak (live)"
+      },
+      "vehicle_state_tpms_pressure_rr": {
+        "name": "Däcktryck höger bak (live)"
+      },
+      "vehicle_state_tpms_rcp_front_value": {
+        "name": "Rekommenderat kallt däcktryck fram (live)"
+      },
+      "vehicle_state_tpms_rcp_rear_value": {
+        "name": "Rekommenderat kallt däcktryck bak (live)"
+      },
+      "active_alerts": {
+        "name": "Aktiva varningar (live)"
       }
     }
   }
