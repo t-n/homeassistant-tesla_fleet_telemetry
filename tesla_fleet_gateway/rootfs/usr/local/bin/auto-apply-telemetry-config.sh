@@ -255,16 +255,27 @@ export TESLA_HTTP_PROXY_RESOLVE_LOCAL="true"
 
 # Retry the signed apply a few times to absorb a brief proxy-startup window.
 # Capture stdout+stderr together so the real curl/Tesla error is preserved (the
-# apply helper writes its diagnostics to both streams).
+# apply helper writes its diagnostics to both streams). HTTP 4xx from apply
+# (exit 3) is permanent for this request body — do not retry.
 APPLY_MAX_ATTEMPTS="${FLEET_TELEMETRY_APPLY_MAX_ATTEMPTS:-5}"
 APPLY_RETRY_DELAY="${FLEET_TELEMETRY_APPLY_RETRY_DELAY:-3}"
 APPLY_OUTPUT_FILE="$(mktemp)"
 apply_attempt=1
 apply_ok=false
+apply_exit=0
+apply_client_error=false
 
 while [ "$apply_attempt" -le "$APPLY_MAX_ATTEMPTS" ]; do
-    if /usr/local/bin/apply-telemetry-config.sh "$REQUEST_FILE" > "$APPLY_OUTPUT_FILE" 2>&1; then
+    apply_exit=0
+    /usr/local/bin/apply-telemetry-config.sh "$REQUEST_FILE" > "$APPLY_OUTPUT_FILE" 2>&1 || apply_exit=$?
+    if [ "$apply_exit" -eq 0 ]; then
         apply_ok=true
+        break
+    fi
+
+    # Exit 3 = HTTP 4xx (e.g. Unknown field). Surface immediately; no retry.
+    if [ "$apply_exit" -eq 3 ]; then
+        apply_client_error=true
         break
     fi
 
@@ -284,6 +295,18 @@ if [ "$apply_ok" = "true" ]; then
     log_success "Fleet Telemetry config applied" "Tesla accepted the request after ${apply_attempt} attempt(s)"
     telemetry_state_clear_disconnect_reasons
     rm -f "$APPLY_OUTPUT_FILE"
+elif [ "$apply_client_error" = "true" ]; then
+    # apply-telemetry-config.sh already logged ACTION REQUIRED; echo the captured
+    # stream once so Supervisor logs keep a contiguous block.
+    while IFS= read -r line; do
+        [ -n "$line" ] && bashio::log.warning "⎢ ${line}"
+    done < "$APPLY_OUTPUT_FILE"
+    rm -f "$APPLY_OUTPUT_FILE"
+    warn_next_step \
+        "Fleet Telemetry config apply rejected by Tesla (HTTP 4xx; not retried)" \
+        "Fix invalid telemetry_fields / alert_types in the request JSON, then restart the add-on or force a re-apply" \
+        "Confirm Field enum names in Tesla fleet-telemetry vehicle_data.proto before adding new fields"
+    exit 1
 else
     bashio::log.warning "Fleet Telemetry apply output (final attempt):"
     while IFS= read -r line; do
