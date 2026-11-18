@@ -155,7 +155,7 @@ Before adding a name to `config.yaml` / `tesla_oauth.py`:
 | 2 | `translations/en.json` + `sv.json` | Names (+ state enums if needed) with ` (live)` |
 | 3 | `tesla_fleet_gateway/config.yaml` | `telemetry_fields` default + schema enum |
 | 4 | `tesla_oauth.py` | `SUPPORTED_TELEMETRY_FIELDS` / `DEFAULT_TELEMETRY_FIELDS` |
-| 5 | Versions | Bump add-on `config.yaml` and/or integration `manifest.json`; update changelog / commit message |
+| 5 | Versions | Bump add-on `config.yaml` and/or integration `manifest.json`; update `tesla_fleet_gateway/CHANGELOG.md` / commit message |
 
 Composite Tesla fields (e.g. `Location`, `DoorState`, `TpmsSoftWarnings`) are special-cased in the integration coordinator/parsers; one MQTT field may fan out to multiple entities.
 
@@ -201,7 +201,7 @@ CI runs hassfest / HACS validation for the integration and a basic add-on config
 When shipping a behavior change:
 
 1. Bump **`tesla_fleet_gateway/config.yaml`** `version` and/or **`custom_components/tesla_fleet_stream/manifest.json`** `version`.
-2. Note the change for release (add-on changelog if present; otherwise commit message).
+2. Note the change for release in **`tesla_fleet_gateway/CHANGELOG.md`** (Supervisor Changelog tab) and the commit / GitHub release.
 3. Update user docs if options, paths, ports, or onboarding changed.
 4. Keep add-on and integration version bumps coherent when a field spans both.
 
