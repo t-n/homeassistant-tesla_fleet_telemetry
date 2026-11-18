@@ -1189,7 +1189,9 @@ http {
 
     server {
 ${NGINX_HTTP_LISTEN}
-        http2 on;
+        # HTTP/2 off until Alpine/HA base nginx ships nginx2root fixes
+        # (CVE-2026-123007 / CVE-2026-123633). PEM and OAuth do not need h2.
+        http2 off;
         server_name ${NGINX_PEM_SERVER_NAMES};
 
         ssl_certificate ${EDGE_TLS_CERT};
